@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import { env } from "./env-vars.js";
+import { Pool } from 'pg'
+import { env } from './env-vars.js'
 
 export const pool = new Pool({
   host: env.DB_HOST,
@@ -8,6 +8,6 @@ export const pool = new Pool({
   user: env.DB_USER,
   password: env.DB_PASSWORD,
   ssl: {
-    rejectUnauthorized: false,
-  },
-});
+    rejectUnauthorized: false
+  }
+})
