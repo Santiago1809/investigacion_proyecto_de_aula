@@ -2,7 +2,7 @@ import { pool } from '../config/database.js'
 
 export async function findByEmail(email) {
   const { rows } = await pool.query(
-    `SELECT id, email, password_hash, username, full_name FROM users WHERE email = $1 AND status = 'ACTIVE'`,
+    `SELECT id, email, password_hash, username, full_name FROM users WHERE (email = $1 OR username = $1) AND status = 'ACTIVE'`,
     [email]
   )
   return rows[0] ?? null

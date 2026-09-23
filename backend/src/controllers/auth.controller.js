@@ -3,14 +3,14 @@ import { login, register } from '../services/auth.service.js'
 
 const loginSchema = z
   .object({
-    email: z.string().email(),
+    email: z.string().min(1),
     password: z.string().min(1)
   })
   .strict()
 
 const registerSchema = z
   .object({
-    email: z.string().email(),
+    email: z.string().min(1),
     password: z.string().min(8).max(250),
     full_name: z.string().min(2).max(250),
     username: z.string().min(2).max(250),

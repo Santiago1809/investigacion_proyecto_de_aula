@@ -1,0 +1,28 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+
+const publicRoutes = new Set(["/login", "/register"]);
+
+type AppShellProps = {
+  children: ReactNode;
+};
+
+export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+
+  if (publicRoutes.has(pathname)) {
+    return <>{children}</>;
+  }
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarTrigger />
+      <main>{children}</main>
+    </SidebarProvider>
+  );
+}
