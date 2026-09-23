@@ -1,18 +1,23 @@
-"use client";
-
 import axios from "axios";
-import { useAuth } from "@/hooks/use-auth";
-import { redirect } from "next/navigation";
+import { getSession, signOut } from "next-auth/react";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL:
+    typeof window === "undefined"
+      ? (process.env.BACKEND_URL ?? "http://localhost:3001")
+      : "/api/backend",
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-api.interceptors.request.use((config) => {
-  const token = useAuth.getState().token;
+api.interceptors.request.use(async (config) => {
+  if (typeof window === "undefined") {
+    return config;
+  }
+
+  const session = await getSession();
+  const token = session?.accessToken;
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -24,10 +29,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
 
-  (error) => {
-    if (error.response?.status === 401 && error.config?.url !== "/auth/login") {
-      useAuth.getState().setToken(null);
-      redirect('/login');
+  async (error) => {
+    if (
+      typeof window !== "undefined" &&
+      error.response?.status === 401 &&
+      error.config?.url !== "/auth/login"
+    ) {
+      await signOut({ callbackUrl: "/login" });
     }
 
     return Promise.reject(error);

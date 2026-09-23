@@ -2,18 +2,13 @@
 import { Button } from "@/components/ui/button";
 import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/hooks/use-auth";
-import { api } from "@/lib/api";
-import { AuthResponse } from "@/lib/interfaces/auth";
-import { AxiosError } from "axios";
+import { signIn, useSession } from "next-auth/react";
 import { Key, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function Page() {
-  const token = useAuth((state) => state.token);
-  const setToken = useAuth((state) => state.setToken);
-  const setUser = useAuth((state) => state.setUser);
+  const { data: session } = useSession();
   const [login, setLogin] = useState({
     email: "",
     password: "",
@@ -32,28 +27,27 @@ export default function Page() {
     setError("");
 
     try {
-      const res = await api.post<AuthResponse>("/auth/login", login);
+      const result = await signIn("credentials", {
+        email: login.email,
+        password: login.password,
+        redirect: false,
+      });
 
-      if (res.data.token && res.data.user) {
-        setToken(res.data.token);
-        setUser(res.data.user);
+      if (result?.error) {
+        setError("Credenciales inválidas");
+      } else {
         router.push("/");
       }
-    } catch (err) {
-      if (err instanceof AxiosError) {
-        setError(err.response?.data?.error ?? "Error al iniciar sesión");
-      } else {
-        console.error(err);
-        setError("Error inesperado");
-      }
+    } catch {
+      setError("Error inesperado");
     }
   };
   const router = useRouter();
   useEffect(() => {
-    if (token) {
+    if (session) {
       router.push("/");
     }
-  }, [token, router]);
+  }, [session, router]);
   return (
     <div className="h-screen w-screen flex items-center justify-center">
       <div className="h-1/2 w-full flex items-stretch justify-center mx-auto max-w-3/4">

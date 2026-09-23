@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SessionProvider } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -15,14 +16,16 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
   if (publicRoutes.has(pathname)) {
-    return <>{children}</>;
+    return <SessionProvider>{children}</SessionProvider>;
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarTrigger />
-      <main>{children}</main>
-    </SidebarProvider>
+    <SessionProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarTrigger />
+        <main>{children}</main>
+      </SidebarProvider>
+    </SessionProvider>
   );
 }

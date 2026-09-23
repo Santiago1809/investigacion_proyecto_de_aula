@@ -7,8 +7,8 @@
 :root {
   --primary: oklch(0.205 0 0);
   --secondary: oklch(0.97 0 0);
-  --tertiary: #059669;
-  --neutral: #64748B;
+  --tertiary: oklch(59.598% 0.12741 163.254);
+  --neutral: oklch(55.439% 0.04078 257.446);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
