@@ -362,7 +362,7 @@ CREATE INDEX idx_status_history_request
 CREATE INDEX idx_status_history_changed_at
     ON request_status_history(changed_at);
 
-CREATE INDEX idx_audit_request
+CREATE INDEX idx_audit_requestcreate_status_history()
     ON audit_events(request_id);
 
 CREATE INDEX idx_audit_actor
@@ -384,3 +384,778 @@ CREATE INDEX idx_report_exports_user
 CREATE INDEX idx_report_exports_created_at
     ON report_exports(created_at);
 
+CREATE OR REPLACE FUNCTION user_has_role(
+    p_user_id UUID,
+    p_role role_name
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    RETURN EXISTS (
+        SELECT 1
+        FROM user_roles ur
+        INNER JOIN roles r
+            ON r.id = ur.role_id
+        WHERE ur.user_id = p_user_id
+          AND r.name = p_role
+    );
+
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    NEW.updated_at = NOW();
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_requests_updated_at
+BEFORE UPDATE ON requests
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE OR REPLACE FUNCTION create_status_history(
+    p_request_id UUID,
+    p_new_status request_status,
+    p_changed_by UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_previous_status request_status;
+BEGIN
+
+    SELECT status
+    INTO v_previous_status
+    FROM requests
+    WHERE id = p_request_id
+    FOR UPDATE;
+
+
+    IF NOT FOUND THEN
+
+        RAISE EXCEPTION
+            'La solicitud % no existe',
+            p_request_id;
+
+    END IF;
+
+
+    IF v_previous_status = p_new_status THEN
+
+        RAISE EXCEPTION
+            'La solicitud % ya tiene el estado %',
+            p_request_id,
+            p_new_status;
+
+    END IF;
+
+
+    INSERT INTO request_status_history (
+        request_id,
+        previous_status,
+        new_status,
+        changed_by
+    )
+    VALUES (
+        p_request_id,
+        v_previous_status,
+        p_new_status,
+        p_changed_by
+    );
+
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION validate_status_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- Si el estado no cambió, no hacemos nada.
+
+    IF OLD.status = NEW.status THEN
+        RETURN NEW;
+    END IF;
+
+
+    -- NUEVO -> ASIGNADO
+
+    IF OLD.status = 'NUEVO'
+       AND NEW.status = 'ASIGNADO' THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    -- ASIGNADO -> EN_PROGRESO
+
+    IF OLD.status = 'ASIGNADO'
+       AND NEW.status = 'EN_PROGRESO' THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    -- EN_PROGRESO -> RESUELTO
+
+    IF OLD.status = 'EN_PROGRESO'
+       AND NEW.status = 'RESUELTO' THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    -- RESUELTO -> CERRADO
+
+    IF OLD.status = 'RESUELTO'
+       AND NEW.status = 'CERRADO' THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    -- RESUELTO -> EN_PROGRESO
+    -- Reapertura
+
+    IF OLD.status = 'RESUELTO'
+       AND NEW.status = 'EN_PROGRESO' THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    RAISE EXCEPTION
+        'Transición de estado no permitida: % -> %',
+        OLD.status,
+        NEW.status;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_validate_status_transition
+BEFORE UPDATE OF status ON requests
+FOR EACH ROW
+EXECUTE FUNCTION validate_status_transition();
+
+CREATE OR REPLACE FUNCTION manage_request_dates()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- --------------------------------------------------------
+    -- Se resolvió la solicitud
+    -- --------------------------------------------------------
+
+    IF NEW.status = 'RESUELTO'
+       AND OLD.status <> 'RESUELTO' THEN
+
+        NEW.resolved_at = NOW();
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- Se cerró la solicitud
+    -- --------------------------------------------------------
+
+    IF NEW.status = 'CERRADO'
+       AND OLD.status <> 'CERRADO' THEN
+
+        NEW.closed_at = NOW();
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- Se reabre una solicitud
+    -- --------------------------------------------------------
+
+    IF OLD.status = 'CERRADO'
+       AND NEW.status = 'EN_PROGRESO' THEN
+
+        NEW.closed_at = NULL;
+
+    END IF;
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_manage_request_dates
+BEFORE UPDATE OF status ON requests
+FOR EACH ROW
+EXECUTE FUNCTION manage_request_dates();
+
+CREATE OR REPLACE FUNCTION audit_status_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_actor UUID;
+BEGIN
+
+    v_actor := NULLIF(
+        current_setting(
+            'app.current_user_id',
+            true
+        ),
+        ''
+    )::UUID;
+
+
+    IF v_actor IS NULL THEN
+
+        RAISE EXCEPTION
+            'No se estableció app.current_user_id';
+
+    END IF;
+
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.id,
+        v_actor,
+        'STATUS_CHANGED',
+        'status',
+        OLD.status::TEXT,
+        NEW.status::TEXT
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_audit_status_change
+AFTER UPDATE OF status ON requests
+FOR EACH ROW
+WHEN (
+    OLD.status IS DISTINCT FROM NEW.status
+)
+EXECUTE FUNCTION audit_status_change();
+
+CREATE OR REPLACE FUNCTION audit_priority_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_actor UUID;
+BEGIN
+
+    IF OLD.priority = NEW.priority THEN
+        RETURN NEW;
+    END IF;
+
+
+    v_actor := NULLIF(
+        current_setting(
+            'app.current_user_id',
+            true
+        ),
+        ''
+    )::UUID;
+
+
+    IF v_actor IS NULL THEN
+
+        RAISE EXCEPTION
+            'No se estableció app.current_user_id';
+
+    END IF;
+
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.id,
+        v_actor,
+        'PRIORITY_CHANGED',
+        'priority',
+        OLD.priority::TEXT,
+        NEW.priority::TEXT
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_audit_priority_change
+AFTER UPDATE OF priority ON requests
+FOR EACH ROW
+WHEN (
+    OLD.priority IS DISTINCT FROM NEW.priority
+)
+EXECUTE FUNCTION audit_priority_change();
+
+CREATE OR REPLACE FUNCTION validate_request_assignment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- --------------------------------------------------------
+    -- El agente debe existir y estar activo
+    -- --------------------------------------------------------
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM users
+        WHERE id = NEW.agent_id
+          AND status = 'ACTIVE'
+    ) THEN
+
+        RAISE EXCEPTION
+            'El usuario % no está activo',
+            NEW.agent_id;
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- El usuario debe tener rol AGENTE
+    -- --------------------------------------------------------
+
+    IF NOT user_has_role(
+        NEW.agent_id,
+        'AGENTE'
+    ) THEN
+
+        RAISE EXCEPTION
+            'El usuario % no tiene rol de AGENTE',
+            NEW.agent_id;
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- Quien asigna debe ser COORDINADOR
+    -- --------------------------------------------------------
+
+    IF NOT user_has_role(
+        NEW.assigned_by,
+        'COORDINADOR'
+    ) THEN
+
+        RAISE EXCEPTION
+            'Solo un COORDINADOR puede asignar solicitudes';
+
+    END IF;
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_validate_assignment
+BEFORE INSERT ON request_assignments
+FOR EACH ROW
+EXECUTE FUNCTION validate_request_assignment();
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_request_assignment
+ON request_assignments(request_id)
+WHERE unassigned_at IS NULL;
+
+CREATE OR REPLACE FUNCTION audit_assignment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- --------------------------------------------------------
+    -- Auditoría
+    -- --------------------------------------------------------
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.request_id,
+        NEW.assigned_by,
+        'ASSIGNED',
+        'agent_id',
+        NULL,
+        NEW.agent_id::TEXT
+    );
+
+
+    -- --------------------------------------------------------
+    -- Notificación al agente
+    -- --------------------------------------------------------
+
+    INSERT INTO notifications (
+        user_id,
+        request_id,
+        type,
+        message
+    )
+    VALUES (
+        NEW.agent_id,
+        NEW.request_id,
+        'REQUEST_ASSIGNED',
+        'Se te ha asignado una nueva solicitud de soporte.'
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_assignment_effects
+AFTER INSERT ON request_assignments
+FOR EACH ROW
+EXECUTE FUNCTION audit_assignment();
+
+CREATE OR REPLACE FUNCTION audit_unassignment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_actor UUID;
+BEGIN
+
+    -- Si no se está desasignando, no hacemos nada.
+
+    IF OLD.unassigned_at IS NOT NULL
+       OR NEW.unassigned_at IS NULL THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+    v_actor := NULLIF(
+        current_setting(
+            'app.current_user_id',
+            true
+        ),
+        ''
+    )::UUID;
+
+
+    IF v_actor IS NULL THEN
+
+        RAISE EXCEPTION
+            'No se estableció app.current_user_id';
+
+    END IF;
+
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.request_id,
+        v_actor,
+        'UNASSIGNED',
+        'agent_id',
+        NEW.agent_id::TEXT,
+        NULL
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_assignment_unassignment
+AFTER UPDATE OF unassigned_at
+ON request_assignments
+FOR EACH ROW
+EXECUTE FUNCTION audit_unassignment();
+
+CREATE OR REPLACE FUNCTION audit_comment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.request_id,
+        NEW.author_id,
+        'COMMENT_CREATED',
+        NULL,
+        NULL,
+        'Comentario creado'
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_comment_audit
+AFTER INSERT ON request_comments
+FOR EACH ROW
+EXECUTE FUNCTION audit_comment();
+
+CREATE OR REPLACE FUNCTION prevent_comment_modification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    RAISE EXCEPTION
+        'Los comentarios no pueden modificarse ni eliminarse';
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_prevent_comment_update
+BEFORE UPDATE ON request_comments
+FOR EACH ROW
+EXECUTE FUNCTION prevent_comment_modification();
+
+
+CREATE TRIGGER trg_prevent_comment_delete
+BEFORE DELETE ON request_comments
+FOR EACH ROW
+EXECUTE FUNCTION prevent_comment_modification();
+
+CREATE OR REPLACE FUNCTION notify_status_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_agent UUID;
+BEGIN
+
+    -- --------------------------------------------------------
+    -- Buscar agente actualmente asignado
+    -- --------------------------------------------------------
+
+    SELECT agent_id
+    INTO v_agent
+    FROM request_assignments
+    WHERE request_id = NEW.id
+      AND unassigned_at IS NULL
+    LIMIT 1;
+
+
+    -- --------------------------------------------------------
+    -- Notificar al agente
+    -- --------------------------------------------------------
+
+    IF v_agent IS NOT NULL THEN
+
+        INSERT INTO notifications (
+            user_id,
+            request_id,
+            type,
+            message
+        )
+        VALUES (
+            v_agent,
+            NEW.id,
+
+            CASE
+                WHEN NEW.status = 'RESUELTO'
+                    THEN 'REQUEST_RESOLVED'::notification_type
+
+                ELSE
+                    'REQUEST_STATUS_CHANGED'::notification_type
+            END,
+
+            'La solicitud cambió de estado a '
+                || NEW.status::TEXT
+        );
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- Notificar al solicitante cuando se resuelve
+    -- --------------------------------------------------------
+
+    IF NEW.status = 'RESUELTO'
+       AND OLD.status <> 'RESUELTO' THEN
+
+        INSERT INTO notifications (
+            user_id,
+            request_id,
+            type,
+            message
+        )
+        VALUES (
+            NEW.requester_id,
+            NEW.id,
+            'REQUEST_RESOLVED',
+            'Tu solicitud ha sido marcada como resuelta.'
+        );
+
+    END IF;
+
+
+    -- --------------------------------------------------------
+    -- Notificar reapertura
+    -- --------------------------------------------------------
+
+    IF OLD.status = 'CERRADO'
+       AND NEW.status = 'EN_PROGRESO' THEN
+
+        INSERT INTO notifications (
+            user_id,
+            request_id,
+            type,
+            message
+        )
+        VALUES (
+            NEW.requester_id,
+            NEW.id,
+            'REQUEST_REOPENED',
+            'Tu solicitud ha sido reabierta.'
+        );
+
+    END IF;
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_status_notifications
+AFTER UPDATE OF status ON requests
+FOR EACH ROW
+WHEN (
+    OLD.status IS DISTINCT FROM NEW.status
+)
+EXECUTE FUNCTION notify_status_change();
+
+CREATE OR REPLACE FUNCTION audit_request_creation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NEW.id,
+        NEW.requester_id,
+        'REQUEST_CREATED',
+        NULL,
+        NULL,
+        'Solicitud creada'
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_request_creation_audit
+AFTER INSERT ON requests
+FOR EACH ROW
+EXECUTE FUNCTION audit_request_creation();
+
+CREATE OR REPLACE FUNCTION audit_report_export()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    INSERT INTO audit_events (
+        request_id,
+        actor_id,
+        action,
+        field_name,
+        old_value,
+        new_value
+    )
+    VALUES (
+        NULL,
+        NEW.requested_by,
+        'REPORT_EXPORTED',
+        NULL,
+        NULL,
+        NEW.filters::TEXT
+    );
+
+
+    RETURN NEW;
+
+END;
+$$;
+
+
+CREATE TRIGGER trg_report_export_audit
+AFTER INSERT ON report_exports
+FOR EACH ROW
+EXECUTE FUNCTION audit_report_export();
