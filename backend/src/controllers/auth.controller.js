@@ -1,10 +1,20 @@
-import { login } from '../services/auth.service.js'
 import { z } from 'zod'
+import { login, register } from '../services/auth.service.js'
 
 const loginSchema = z
   .object({
     email: z.string().email(),
     password: z.string().min(1)
+  })
+  .strict()
+
+const registerSchema = z
+  .object({
+    email: z.string().email(),
+    password: z.string().min(8).max(250),
+    full_name: z.string().min(2).max(250),
+    username: z.string().min(2).max(250),
+    role_id: z.coerce.number().int().positive().min(1).max(4).default(1)
   })
   .strict()
 
@@ -19,5 +29,19 @@ export async function loginController(req, res) {
   }
   const { email, password } = body.data
   const request = await login(email, password)
+  return res.status(request.status).json(request)
+}
+
+export async function registerController(req, res) {
+  const body = registerSchema.safeParse(req.body)
+
+  if (!body.success) {
+    return res.status(400).json({
+      error: 'DAtos de entrada inválidos',
+      details: body.error.flatten()
+    })
+  }
+  const { email, full_name, password, role_id, username } = body.data
+  const request = await register(email, username, full_name, password, role_id)
   return res.status(request.status).json(request)
 }
