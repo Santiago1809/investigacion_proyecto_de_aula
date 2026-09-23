@@ -1,8 +1,11 @@
-import express from "express";
-import dotenv from "dotenv";
+import express from 'express'
+import morgan from 'morgan'
+import { authRoutes } from './routes/auth.route.js'
 
-const app = express();
+const app = express()
 
-app.use(express.json());
+app.use(express.json())
+app.use(morgan('dev'))
+app.use(authRoutes)
 
-export { app };
+export { app }
