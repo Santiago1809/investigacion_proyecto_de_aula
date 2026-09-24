@@ -18,6 +18,6 @@ export async function getUserRequestController(req, res) {
   }
   const { page, limit } = params.data
 
-  const request = await getRequestsByUser(req.user.sub, page, limit)
+  const request = await getRequestsByUser(req.user.id, page, limit)
   return res.status(request.status).json(request)
 }
