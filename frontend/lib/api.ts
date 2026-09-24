@@ -5,7 +5,7 @@ const api = axios.create({
   baseURL:
     typeof window === "undefined"
       ? (process.env.BACKEND_URL ?? "http://localhost:3001")
-      : "/api/backend",
+      : (process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001"),
   headers: {
     "Content-Type": "application/json",
   },

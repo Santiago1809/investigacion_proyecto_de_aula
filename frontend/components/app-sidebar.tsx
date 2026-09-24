@@ -63,13 +63,11 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   const path = usePathname();
-  const userName = session?.user.name ?? "Usuario";
-  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="border-r border-slate-200 bg-white">
-      <SidebarHeader className="gap-5 border-b border-slate-100 px-4 py-5">
-        <div className="flex items-center gap-3">
+    <Sidebar collapsible="icon" className="border-r border-slate-200 bg-white">
+      <SidebarHeader className="border-b border-slate-100 px-4 py-5">
+        <div className="flex items-center gap-3 group-data-[collapsible=icon]:hidden">
           <Avatar
             size="lg"
             className="rounded-xl bg-slate-900 text-white after:border-slate-900"
@@ -86,18 +84,6 @@ export function AppSidebar() {
               Centro operativo
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700">
-            {userInitial}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-700">
-              {userName}
-            </p>
-            <p className="text-[11px] text-slate-400">Sesión activa</p>
-          </div>
-          <span className="ml-auto size-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
         </div>
       </SidebarHeader>
       <SidebarContent className="gap-0 px-3 py-4">
@@ -150,7 +136,9 @@ export function AppSidebar() {
           <span className="flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-red-100 group-hover:text-red-600">
             <LogOut className="size-4" strokeWidth={2} />
           </span>
-          <span className="flex-1 text-left">Cerrar sesión</span>
+          <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">
+            Cerrar sesión
+          </span>
         </Button>
       </SidebarFooter>
     </Sidebar>
