@@ -45,7 +45,7 @@ export async function register(
   if (!user) {
     return { status: 400, message: 'No fue posible registrar al usuario' }
   }
-  const token = createToken({ sub: user, username })
+  const token = createToken({ sub: user, username, roles: [role_id] })
   return {
     status: 200,
     token,

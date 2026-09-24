@@ -11,6 +11,22 @@ function getBearerToken(req) {
   return authorization.slice(7).trim() || null
 }
 
+function normalizeUser(payload) {
+  if (!payload?.sub || typeof payload.username !== 'string') {
+    return null
+  }
+
+  const roles = Array.isArray(payload.roles)
+    ? payload.roles.map(Number).filter(Number.isInteger)
+    : []
+
+  return {
+    id: payload.sub,
+    username: payload.username,
+    roles
+  }
+}
+
 export function authenticateToken(req, res, next) {
   const token = getBearerToken(req)
 
@@ -19,7 +35,14 @@ export function authenticateToken(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, env.JWT_SECRET)
+    const payload = jwt.verify(token, env.JWT_SECRET)
+    const user = normalizeUser(payload)
+
+    if (!user) {
+      return res.status(401).json({ message: 'Identidad de usuario inválida' })
+    }
+
+    req.user = user
     return next()
   } catch {
     return res.status(401).json({ message: 'Token inválido o expirado' })
