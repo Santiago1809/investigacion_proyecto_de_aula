@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SessionProvider } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
+import { QueryProvider } from "@/components/query-provider";
 import PortalHeader from "@/components/portal/header";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -22,14 +23,16 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <SessionProvider>
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarTrigger />
-        <main className="min-w-0 flex-1">
-          <PortalHeader />
-          {children}
-        </main>
-      </SidebarProvider>
+      <QueryProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarTrigger />
+          <main className="min-w-0 flex-1">
+            <PortalHeader />
+            {children}
+          </main>
+        </SidebarProvider>
+      </QueryProvider>
     </SessionProvider>
   );
 }

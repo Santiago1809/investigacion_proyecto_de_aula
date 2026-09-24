@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Bell, Search } from "lucide-react";
 import { Input } from "../ui/input";
+import { Button } from "../ui/button";
 
 const MOCK_NOTIFICATIONS = [
   {
@@ -34,19 +35,8 @@ export default function PortalHeader() {
           placeholder="Busca el titulo o el id de tu solicitud"
         />
       </search>
-      <div className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm sm:gap-3 sm:px-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 sm:size-9">
-          {userInitial}
-        </span>
-        <div className="hidden min-w-0 sm:block">
-          <p className="max-w-36 truncate text-xs font-semibold text-slate-800">
-            {userName}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400">Sesión activa</p>
-        </div>
-      </div>
       <div className="relative shrink-0">
-        <button
+        <Button
           type="button"
           aria-expanded={notificationsOpen}
           aria-haspopup="true"
@@ -58,7 +48,7 @@ export default function PortalHeader() {
           <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white ring-2 ring-slate-50">
             {MOCK_NOTIFICATIONS.length}
           </span>
-        </button>
+        </Button>
         {notificationsOpen && (
           <div className="absolute right-0 top-12 z-50 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -98,6 +88,17 @@ export default function PortalHeader() {
             </div>
           </div>
         )}
+      </div>
+      <div className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm sm:gap-3 sm:px-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 sm:size-9">
+          {userInitial}
+        </span>
+        <div className="hidden min-w-0 sm:block">
+          <p className="max-w-36 truncate text-xs font-semibold text-slate-800">
+            {userName}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">Sesión activa</p>
+        </div>
       </div>
     </header>
   );
