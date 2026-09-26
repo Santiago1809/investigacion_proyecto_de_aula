@@ -1,11 +1,9 @@
 import { z } from 'zod'
 import {
   createRequest,
-  getRequestsByUser
-} from '../services/request.service.js'
+  getRequestsByUser,
   changeRequestPriority,
-  getAllRequestsSorted,
-  getRequestsByUser
+  getAllRequestsSorted
 } from '../services/request.service.js'
 
 const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
@@ -37,6 +35,9 @@ const createRequestSchema = z
         error: 'La prioridad no es válida'
       })
       .default('MEDIA')
+  })
+  .strict()
+
 const getAllRequestsSchema = z
   .object({
     page: z.coerce.number().int().positive().default(1),
@@ -72,8 +73,6 @@ export async function getUserRequestController(req, res) {
 
 export async function createRequestController(req, res) {
   const params = await createRequestSchema.safeParseAsync(req.body)
-export async function getAllRequestsController(req, res) {
-  const params = getAllRequestsSchema.safeParse(req.query)
   if (!params.success) {
     return res.status(400).json({
       error: 'Datos de entrada inválidos',
@@ -89,6 +88,16 @@ export async function getAllRequestsController(req, res) {
     req.user.id
   )
   return res.status(result.status).json(result)
+}
+
+export async function getAllRequestsController(req, res) {
+  const params = getAllRequestsSchema.safeParse(req.query)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
   const { sortBy, order, page, limit } = params.data
 
   const request = await getAllRequestsSorted(sortBy, order, page, limit)

@@ -1,8 +1,7 @@
 import {
   createUserRequest,
-  getUserRequests
-  getAllRequests,
   getUserRequests,
+  getAllRequests,
   updateRequestPriority
 } from '../repositories/request.repository.js'
 
@@ -54,6 +53,8 @@ export async function createRequest(
     return { status: 400, message: 'Error creando la solicitud' }
   }
   return { status: 201, request: request[0] }
+}
+
 export async function getRequestsByUser(user_id, page = 1, limit = 10) {
   const pagination = normalizePagination(page, limit)
   const request = await getUserRequests(
