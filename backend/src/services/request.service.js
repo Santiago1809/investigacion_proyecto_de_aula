@@ -1,4 +1,7 @@
-import { getUserRequests } from '../repositories/request.repository.js'
+import {
+  createUserRequest,
+  getUserRequests
+} from '../repositories/request.repository.js'
 
 const MAX_LIMIT = 100
 export async function getRequestsByUser(user_id, page = 1, limit = 10) {
@@ -10,7 +13,11 @@ export async function getRequestsByUser(user_id, page = 1, limit = 10) {
   const totalPages = Math.ceil(totalItems / limit)
   return {
     status: 200,
-    data: request.map(({ total_items: _, ...row }) => row),
+    data: request.map((row) => {
+      const { total_items, ...data } = row
+      void total_items
+      return data
+    }),
     pagination: {
       page,
       limit,
@@ -21,4 +28,24 @@ export async function getRequestsByUser(user_id, page = 1, limit = 10) {
       hasPrev: page > 1
     }
   }
+}
+
+export async function createRequest(
+  title,
+  description,
+  category_id,
+  priority,
+  user_id
+) {
+  const request = await createUserRequest(
+    title,
+    description,
+    category_id,
+    priority,
+    user_id
+  )
+  if (!request || request.length === 0) {
+    return { status: 400, message: 'Error creando la solicitud' }
+  }
+  return { status: 201, request: request[0] }
 }

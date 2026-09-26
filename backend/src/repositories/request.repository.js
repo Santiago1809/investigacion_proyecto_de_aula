@@ -20,3 +20,20 @@ export async function getUserRequests(user_id, limit, offset) {
   )
   return rows
 }
+
+export async function createUserRequest(
+  title,
+  description,
+  category_id,
+  priority,
+  user_id
+) {
+  const { rows } = await pool.query(
+    `
+    INSERT INTO requests (title, description, category_id, priority, requester_id)  VALUES ($1,$2,$3,$4,$5)  RETURNING *
+    `,
+    [title, description, category_id, priority, user_id]
+  )
+
+  return rows
+}
