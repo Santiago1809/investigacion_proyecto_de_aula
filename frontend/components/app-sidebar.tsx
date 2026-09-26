@@ -130,13 +130,13 @@ export function AppSidebar() {
       <SidebarFooter className="mb-4 border-t border-slate-100 px-3 pt-4">
         <Button
           aria-label="Cerrar sesión"
-          className="group h-11 w-full flex justify-center items-center gap-3 rounded-xl border border-transparent px-3 text-sm font-semibold text-slate-500 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-700 focus-visible:border-red-200 focus-visible:ring-4 focus-visible:ring-red-100 active:scale-[0.98]"
+          className="group  h-11 w-full flex justify-center items-center gap-3 rounded-xl border border-red-500 px-3 text-sm font-semibold text-slate-500 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-700 focus-visible:border-red-200 focus-visible:ring-4 focus-visible:ring-red-100 active:scale-[0.98]"
           onClick={() => signOut({ callbackUrl: "/login" })}
         >
-          <span className="flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-red-100 group-hover:text-red-600">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-slate-100 text-red-500 transition-colors group-hover:bg-red-100 group-hover:text-red-600">
             <LogOut className="size-4" strokeWidth={2} />
           </span>
-          <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">
+          <span className="flex-1 text-left group-data-[collapsible=icon]:hidden text-red-500">
             Cerrar sesión
           </span>
         </Button>

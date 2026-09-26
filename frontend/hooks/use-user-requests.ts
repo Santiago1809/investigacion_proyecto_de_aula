@@ -1,4 +1,9 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export interface UserRequest {
@@ -38,5 +43,27 @@ export function useUserRequests(page: number, limit: number) {
     },
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+  });
+}
+
+export type RequestPriority = "BAJA" | "MEDIA" | "ALTA" | "CRITICA";
+
+export interface CreateRequestPayload {
+  title: string;
+  description: string;
+  category_id: number;
+  priority: RequestPriority;
+}
+
+export function useCreateRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CreateRequestPayload) => {
+      const response = await api.post("/request", payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
   });
 }

@@ -4,6 +4,9 @@ import { api } from "@/lib/api";
 
 type BackendLoginResponse = {
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: number;
   user?: {
     id: string;
     username: string;
@@ -38,7 +41,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
           const data = response.data;
 
-          if (!data.token || !data.user) {
+          const accessToken = data.accessToken ?? data.token;
+
+          if (
+            !accessToken ||
+            !data.refreshToken ||
+            !data.accessTokenExpiresAt ||
+            !data.user
+          ) {
             return null;
           }
 
@@ -48,7 +58,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: data.user.email,
             username: data.user.username,
             roles: data.user.roles_id,
-            accessToken: data.token,
+            accessToken,
+            refreshToken: data.refreshToken,
+            accessTokenExpiresAt: data.accessTokenExpiresAt,
           };
         } catch {
           return null;
@@ -57,11 +69,44 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.accessToken = user.accessToken;
+        token.refreshToken = user.refreshToken;
+        token.accessTokenExpiresAt = user.accessTokenExpiresAt;
         token.username = user.username;
         token.roles = user.roles;
+      }
+
+      const shouldRefresh =
+        typeof token.refreshToken === "string" &&
+        typeof token.accessTokenExpiresAt === "number" &&
+        Date.now() >= token.accessTokenExpiresAt - 30_000;
+
+      if (shouldRefresh) {
+        try {
+          const response = await api.post<BackendLoginResponse>(
+            "/auth/refresh",
+            { refreshToken: token.refreshToken },
+          );
+          const data = response.data;
+          const accessToken = data.accessToken ?? data.token;
+
+          if (
+            !accessToken ||
+            !data.refreshToken ||
+            !data.accessTokenExpiresAt
+          ) {
+            throw new Error("Respuesta de actualización inválida");
+          }
+
+          token.accessToken = accessToken;
+          token.refreshToken = data.refreshToken;
+          token.accessTokenExpiresAt = data.accessTokenExpiresAt;
+          delete token.error;
+        } catch {
+          token.error = "RefreshAccessTokenError";
+        }
       }
 
       return token;
@@ -69,6 +114,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     session({ session, token }) {
       session.accessToken =
         typeof token.accessToken === "string" ? token.accessToken : "";
+      session.error = typeof token.error === "string" ? token.error : undefined;
       session.user.id = token.sub ?? "";
       session.user.username =
         typeof token.username === "string" ? token.username : "";

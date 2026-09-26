@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import {
+  createRequest,
+  getRequestsByUser
+} from '../services/request.service.js'
   changeRequestPriority,
   getAllRequestsSorted,
   getRequestsByUser
@@ -14,6 +17,26 @@ const getUserRequestSchema = z
   })
   .strict()
 
+const createRequestSchema = z
+  .object({
+    title: z
+      .string({ error: 'El título es obligatorio' })
+      .trim()
+      .min(1, 'El título es obligatorio')
+      .max(200, 'El título no puede superar los 200 caracteres'),
+    description: z
+      .string({ error: 'La descripción es obligatoria' })
+      .trim()
+      .min(1, 'La descripción es obligatoria'),
+    category_id: z
+      .number({ error: 'La categoría es obligatoria' })
+      .int('La categoría debe ser un número entero')
+      .positive('La categoría no es válida'),
+    priority: z
+      .enum(['BAJA', 'MEDIA', 'ALTA', 'CRITICA'], {
+        error: 'La prioridad no es válida'
+      })
+      .default('MEDIA')
 const getAllRequestsSchema = z
   .object({
     page: z.coerce.number().int().positive().default(1),
@@ -47,6 +70,8 @@ export async function getUserRequestController(req, res) {
   return res.status(request.status).json(request)
 }
 
+export async function createRequestController(req, res) {
+  const params = await createRequestSchema.safeParseAsync(req.body)
 export async function getAllRequestsController(req, res) {
   const params = getAllRequestsSchema.safeParse(req.query)
   if (!params.success) {
@@ -55,6 +80,15 @@ export async function getAllRequestsController(req, res) {
       details: params.error.flatten()
     })
   }
+  const { title, description, category_id, priority } = params.data
+  const result = await createRequest(
+    title,
+    description,
+    category_id,
+    priority,
+    req.user.id
+  )
+  return res.status(result.status).json(result)
   const { sortBy, order, page, limit } = params.data
 
   const request = await getAllRequestsSorted(sortBy, order, page, limit)

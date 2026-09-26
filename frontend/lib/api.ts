@@ -30,11 +30,29 @@ api.interceptors.response.use(
   (response) => response,
 
   async (error) => {
+    const requestConfig = error.config as
+      | (typeof error.config & { _retry?: boolean })
+      | undefined;
+    const requestUrl = requestConfig?.url ?? "";
+    const isAuthEndpoint =
+      requestUrl.endsWith("/auth/login") ||
+      requestUrl.endsWith("/auth/refresh");
+
     if (
       typeof window !== "undefined" &&
       error.response?.status === 401 &&
-      error.config?.url !== "/auth/login"
+      requestConfig &&
+      !requestConfig._retry &&
+      !isAuthEndpoint
     ) {
+      requestConfig._retry = true;
+      const refreshedSession = await getSession();
+
+      if (refreshedSession?.accessToken && !refreshedSession.error) {
+        requestConfig.headers.Authorization = `Bearer ${refreshedSession.accessToken}`;
+        return api(requestConfig);
+      }
+
       await signOut({ callbackUrl: "/login" });
     }
 

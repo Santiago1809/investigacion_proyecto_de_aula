@@ -4,6 +4,8 @@ import {
   authorizeRoles
 } from '../middlewares/auth.middleware.js'
 import {
+  createRequestController,
+  getUserRequestController
   getAllRequestsController,
   getUserRequestController,
   updateRequestPriorityController
@@ -18,6 +20,11 @@ requestRoutes.get(
   getUserRequestController
 )
 
+requestRoutes.post(
+  '/',
+  authenticateToken,
+  authorizeRoles(1),
+  createRequestController
 requestRoutes.get(
   '/all',
   authenticateToken,
