@@ -1,5 +1,4 @@
-import jwt from 'jsonwebtoken'
-import { env } from '../config/env-vars.js'
+import { verifyAccessToken } from '../services/jwt.service.js'
 
 function getBearerToken(req) {
   const authorization = req.headers.authorization
@@ -35,7 +34,7 @@ export function authenticateToken(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET)
+    const payload = verifyAccessToken(token)
     const user = normalizeUser(payload)
 
     if (!user) {

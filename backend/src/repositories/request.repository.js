@@ -15,6 +15,7 @@ export async function getUserRequests(user_id, limit, offset) {
       inner join categories c
       on r.category_id = c.id
       where r.requester_id  = $1
+      order by r.created_at desc
       limit $2 offset $3;`,
     [user_id, limit, offset]
   )

@@ -8,6 +8,14 @@ export async function findByEmail(email) {
   return rows[0] ?? null
 }
 
+export async function findById(id) {
+  const { rows } = await pool.query(
+    `SELECT id, email, username, full_name FROM users WHERE id = $1 AND status = 'ACTIVE'`,
+    [id]
+  )
+  return rows[0] ?? null
+}
+
 export async function findRolesByUserId(userId) {
   const { rows } = await pool.query(
     `
