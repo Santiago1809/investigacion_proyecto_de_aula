@@ -2,7 +2,10 @@ import {
   createUserRequest,
   getUserRequests,
   getAllRequests,
-  updateRequestPriority
+  updateRequestPriority,
+  createRequestComment,
+  canReadRequestComments,
+  listRequestComments
 } from '../repositories/request.repository.js'
 
 const MAX_LIMIT = 100
@@ -87,4 +90,37 @@ export async function changeRequestPriority(request_id, priority, actor_id) {
     return { status: 404, message: 'Solicitud no encontrada' }
   }
   return { status: 200, data: request }
+}
+
+export async function addRequestComment(request_id, content, author_id) {
+  try {
+    const comment = await createRequestComment(request_id, author_id, content)
+    return { status: 201, data: comment }
+  } catch (error) {
+    // 23503: FK de request_id, la solicitud no existe
+    if (error.code === '23503') {
+      return { status: 404, message: 'Solicitud no encontrada' }
+    }
+    // 23514: chk_comment_not_empty, contenido vacío (la zod ya lo valida)
+    if (error.code === '23514') {
+      return { status: 400, message: 'El comentario es obligatorio' }
+    }
+    throw error
+  }
+}
+
+export async function getRequestComments(request_id, user) {
+  const roles = (user?.roles ?? []).map(Number)
+  const allowed = await canReadRequestComments(
+    request_id,
+    user.id,
+    roles.includes(1),
+    roles.includes(2),
+    roles.includes(3) || roles.includes(4)
+  )
+  if (!allowed) {
+    return { status: 404, message: 'Solicitud no encontrada' }
+  }
+  const comments = await listRequestComments(request_id)
+  return { status: 200, data: comments }
 }
