@@ -3,7 +3,7 @@ import { isAxiosError } from "axios";
 import { api } from "@/lib/api";
 
 export interface Agent {
-  id: number;
+  id: string; // UUID
   full_name: string;
   email: string;
 }
@@ -46,7 +46,7 @@ export function useAssignRequest() {
       agentId,
     }: {
       requestId: number | string;
-      agentId: number;
+      agentId: string;
     }) => {
       const response = await api.post(`/request/${requestId}/assign`, {
         agent_id: agentId,

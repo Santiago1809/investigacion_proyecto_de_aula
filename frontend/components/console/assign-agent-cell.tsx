@@ -16,12 +16,21 @@ export function AssignAgentCell({ request }: { request: CoordinatorRequest }) {
   const [agentId, setAgentId] = useState("");
 
   if (request.status !== "NUEVO") {
-    return <span className="text-xs text-slate-400">—</span>;
+    return request.agent ? (
+      <span
+        className="text-xs text-slate-700"
+        title={`Asignada a ${request.agent}`}
+      >
+        {request.agent}
+      </span>
+    ) : (
+      <span className="text-xs text-slate-400">—</span>
+    );
   }
 
   async function handleAssign() {
     if (!agentId) return;
-    await mutateAsync({ requestId: request.id, agentId: Number(agentId) }).then(
+    await mutateAsync({ requestId: request.id, agentId }).then(
       () => setAgentId(""),
       () => undefined,
     );

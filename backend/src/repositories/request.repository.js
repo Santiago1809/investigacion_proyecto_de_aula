@@ -58,6 +58,7 @@ export async function getAllRequests(sortBy, order, limit, offset) {
         r.status,
         r.created_at,
         u.full_name as requester,
+        ua.full_name as agent,
         count(*) over() as total_items
       from
         requests r
@@ -65,6 +66,9 @@ export async function getAllRequests(sortBy, order, limit, offset) {
       on r.category_id = c.id
       inner join users u
       on r.requester_id = u.id
+      left join request_assignments ra
+        on ra.request_id = r.id and ra.unassigned_at is null
+      left join users ua on ua.id = ra.agent_id
       order by ${column} ${direction}, r.created_at desc, r.id
       limit $1 offset $2;`,
     [limit, offset]
