@@ -139,6 +139,112 @@ export async function assignRequestToAgent(request_id, agent_id, assigned_by) {
   }
 }
 
+// Misma matriz que el trigger trg_validate_status_transition de la BD.
+const ALLOWED_TRANSITIONS = {
+  NUEVO: ['ASIGNADO'],
+  ASIGNADO: ['EN_PROGRESO'],
+  EN_PROGRESO: ['RESUELTO'],
+  RESUELTO: ['CERRADO', 'EN_PROGRESO']
+}
+
+export async function changeRequestStatus(
+  request_id,
+  new_status,
+  actor_id,
+  has_coordinator
+) {
+  // Todo en un solo cliente/transacción: trg_audit_status_change lee
+  // app.current_user_id y create_status_history debe correr ANTES del update
+  // porque lee el estado anterior con FOR UPDATE.
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const { rows: found } = await client.query(
+      `select id, status, requester_id from requests where id = $1 for update;`,
+      [request_id]
+    )
+    const request = found[0]
+    if (!request) {
+      await client.query('rollback')
+      return null
+    }
+
+    if (!has_coordinator) {
+      const { rows: assignment } = await client.query(
+        `select 1 from request_assignments
+          where request_id = $1 and agent_id = $2 and unassigned_at is null;`,
+        [request_id, actor_id]
+      )
+      if (assignment.length === 0) {
+        await client.query('rollback')
+        const error = new Error(
+          'No tienes permisos para cambiar el estado de esta solicitud'
+        )
+        error.code = 'FORBIDDEN'
+        throw error
+      }
+    }
+
+    if (!ALLOWED_TRANSITIONS[request.status]?.includes(new_status)) {
+      await client.query('rollback')
+      const error = new Error(
+        `Transición de estado no permitida: ${request.status} -> ${new_status}`
+      )
+      error.code = 'INVALID_TRANSITION'
+      throw error
+    }
+
+    await client.query("select set_config('app.current_user_id', $1, true)", [
+      actor_id
+    ])
+    await client.query('select create_status_history($1, $2, $3);', [
+      request_id,
+      new_status,
+      actor_id
+    ])
+    const { rows } = await client.query(
+      `update requests
+        set status = $1
+        where id = $2
+        returning id, status, updated_at, resolved_at, closed_at;`,
+      [new_status, request_id]
+    )
+    await client.query('commit')
+    return rows[0]
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+export async function getRequestStatusHistory(request_id) {
+  const { rows: found } = await pool.query(
+    `select 1 from requests where id = $1;`,
+    [request_id]
+  )
+  if (found.length === 0) {
+    return null
+  }
+  const { rows } = await pool.query(
+    `select
+        h.id,
+        h.request_id,
+        h.previous_status,
+        h.new_status,
+        h.changed_by,
+        u.full_name as changed_by_name,
+        h.changed_at
+      from request_status_history h
+      join users u on u.id = h.changed_by
+      where h.request_id = $1
+      order by h.changed_at asc, h.id;`,
+    [request_id]
+  )
+  return rows
+}
+
 export async function updateRequestPriority(request_id, priority, actor_id) {
   // El trigger trg_audit_priority_change lee app.current_user_id para registrar
   // quién hizo el cambio, así que todo debe ir en la misma transacción y cliente

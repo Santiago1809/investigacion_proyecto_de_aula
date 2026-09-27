@@ -12,11 +12,15 @@
 
 ## Tasks
 
-- [ ] T1 Backend: `PATCH /requests/:id/status` (role 2 AGENTE — assigned agent only; role 3 optional) — service validates transition against matrix before DB, writes history row via `create_status_history`, sets resolved/closed dates via triggers, transaction + `app.current_user_id`; map invalid transition to 409 with Spanish message.
-- [ ] T2 Backend: `GET /requests/:id/history` (roles 2,3,4) — full status history with who/when.
-- [ ] T3 Frontend console: status-change action on assigned requests (allowed options only per current status) + history timeline view.
-- [ ] T4 Functional checks: backend boots, eslint clean, frontend build passes.
+- [x] T1 Backend: `PATCH /request/:id/status` (AGENTE asignado o COORDINADOR) — matriz validada en JS antes de la BD, transacción con `app.current_user_id`, `create_status_history` antes del update, 409 con mensaje español en transición inválida.
+- [x] T2 Backend: `GET /request/:id/history` (roles 2,3,4) — historial completo quién/cuándo/qué.
+- [x] T3 Frontend: columna "Acciones" en la tabla del coordinador con transiciones permitidas por estado + timeline de historial colapsable (lazy fetch).
+- [x] T4 Checks: eslint backend + boot OK; frontend lint + tsc + build OK.
 
-## Route: delegated writer
+## Route: mixed
+
+Backend: repository recuperado de stash del writer cancelado (completo y correcto: matriz + transacción); orchestrator completó service/controller/routes inline.
+Frontend: 1 writer delegado, verificado.
+Nota: las páginas de detalle `/console/requests/[id]` viven en HU06 — RequestStatusCell es reutilizable ahí tras el merge.
 
 Progress / commits:

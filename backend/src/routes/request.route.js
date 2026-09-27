@@ -10,6 +10,8 @@ import {
   updateRequestPriorityController,
   getRequestByIdController,
   assignRequestController,
+  updateRequestStatusController,
+  getStatusHistoryController,
   createCommentController,
   getCommentsController
 } from '../controllers/request.controller.js'
@@ -49,6 +51,20 @@ requestRoutes.post(
   authenticateToken,
   authorizeRoles(3),
   assignRequestController
+)
+
+requestRoutes.patch(
+  '/:id/status',
+  authenticateToken,
+  authorizeRoles(2, 3),
+  updateRequestStatusController
+)
+
+requestRoutes.get(
+  '/:id/history',
+  authenticateToken,
+  authorizeRoles(2, 3, 4),
+  getStatusHistoryController
 )
 
 requestRoutes.patch(

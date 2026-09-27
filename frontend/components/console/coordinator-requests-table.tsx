@@ -14,6 +14,8 @@ import {
   type SortOrder,
 } from "@/hooks/use-all-requests";
 import { AssignAgentCell } from "@/components/console/assign-agent-cell";
+import { RequestStatusCell } from "@/components/console/request-status-cell";
+import type { RequestStatus } from "@/hooks/use-request-status";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -87,6 +89,16 @@ const requestColumns = requestColumnHelper.columns([
       <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
         {info.getValue()}
       </span>
+    ),
+  }),
+  requestColumnHelper.display({
+    id: "statusActions",
+    header: "Acciones",
+    cell: (info) => (
+      <RequestStatusCell
+        requestId={String(info.row.original.id)}
+        status={info.row.original.status as RequestStatus}
+      />
     ),
   }),
   requestColumnHelper.display({
