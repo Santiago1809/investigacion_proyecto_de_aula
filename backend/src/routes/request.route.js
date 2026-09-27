@@ -9,7 +9,9 @@ import {
   getAllRequestsController,
   updateRequestPriorityController,
   getRequestByIdController,
-  assignRequestController
+  assignRequestController,
+  createCommentController,
+  getCommentsController
 } from '../controllers/request.controller.js'
 
 export const requestRoutes = Router()
@@ -54,4 +56,18 @@ requestRoutes.patch(
   authenticateToken,
   authorizeRoles(3),
   updateRequestPriorityController
+)
+
+requestRoutes.post(
+  '/:id/comments',
+  authenticateToken,
+  authorizeRoles(2, 3),
+  createCommentController
+)
+
+requestRoutes.get(
+  '/:id/comments',
+  authenticateToken,
+  authorizeRoles(1, 2, 3, 4),
+  getCommentsController
 )
