@@ -58,6 +58,7 @@ export async function getAllRequests(sortBy, order, limit, offset) {
         r.status,
         r.created_at,
         u.full_name as requester,
+        ua.full_name as agent,
         count(*) over() as total_items
       from
         requests r
@@ -65,11 +66,77 @@ export async function getAllRequests(sortBy, order, limit, offset) {
       on r.category_id = c.id
       inner join users u
       on r.requester_id = u.id
+      left join request_assignments ra
+        on ra.request_id = r.id and ra.unassigned_at is null
+      left join users ua on ua.id = ra.agent_id
       order by ${column} ${direction}, r.created_at desc, r.id
       limit $1 offset $2;`,
     [limit, offset]
   )
   return rows
+}
+
+export async function getRequestById(request_id) {
+  const { rows } = await pool.query(
+    `select
+        r.id,
+        r.title,
+        r.description,
+        r.priority,
+        r.status,
+        r.created_at,
+        r.updated_at,
+        r.resolved_at,
+        r.closed_at,
+        c."name" as category,
+        u.id as requester_id,
+        u.full_name as requester,
+        ra.agent_id,
+        ua.full_name as agent,
+        rb.full_name as assigned_by_name,
+        ra.assigned_at
+      from requests r
+      inner join categories c on c.id = r.category_id
+      inner join users u on u.id = r.requester_id
+      left join request_assignments ra
+        on ra.request_id = r.id and ra.unassigned_at is null
+      left join users ua on ua.id = ra.agent_id
+      left join users rb on rb.id = ra.assigned_by
+      where r.id = $1;`,
+    [request_id]
+  )
+  return rows[0] ?? null
+}
+
+export async function assignRequestToAgent(request_id, agent_id, assigned_by) {
+  // Los triggers trg_validate_assignment / uq_active_request_assignment /
+  // trg_validate_status_transition validan toda la regla de negocio y
+  // trg_assignment_effects registra auditoría + notificación. Todo debe ir
+  // en la misma transacción y con app.current_user_id seteado.
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    await client.query("select set_config('app.current_user_id', $1, true)", [
+      assigned_by
+    ])
+    const { rows } = await client.query(
+      `insert into request_assignments (request_id, agent_id, assigned_by)
+        values ($1, $2, $3)
+        returning id, request_id, agent_id, assigned_by, assigned_at;`,
+      [request_id, agent_id, assigned_by]
+    )
+    await client.query(
+      `update requests set status = 'ASIGNADO' where id = $1;`,
+      [request_id]
+    )
+    await client.query('commit')
+    return rows[0]
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function updateRequestPriority(request_id, priority, actor_id) {

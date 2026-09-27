@@ -3,7 +3,9 @@ import {
   createRequest,
   getRequestsByUser,
   changeRequestPriority,
-  getAllRequestsSorted
+  getAllRequestsSorted,
+  getRequestDetail,
+  assignRequest
 } from '../services/request.service.js'
 
 const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
@@ -102,6 +104,43 @@ export async function getAllRequestsController(req, res) {
 
   const request = await getAllRequestsSorted(sortBy, order, page, limit)
   return res.status(request.status).json(request)
+}
+
+const assignRequestSchema = z
+  .object({
+    agent_id: z.uuid('El agente no es válido')
+  })
+  .strict()
+
+export async function getRequestByIdController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
+
+  const result = await getRequestDetail(params.data.id)
+  return res.status(result.status).json(result)
+}
+
+export async function assignRequestController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  const body = assignRequestSchema.safeParse(req.body)
+  if (!params.success || !body.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: (params.success ? body : params).error.flatten()
+    })
+  }
+
+  const result = await assignRequest(
+    params.data.id,
+    body.data.agent_id,
+    req.user.id
+  )
+  return res.status(result.status).json(result)
 }
 
 export async function updateRequestPriorityController(req, res) {

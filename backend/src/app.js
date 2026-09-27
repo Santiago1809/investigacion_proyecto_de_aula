@@ -4,6 +4,8 @@ import morgan from 'morgan'
 import { authRoutes } from './routes/auth.route.js'
 import { requestRoutes } from './routes/request.route.js'
 import { categoryRoutes } from './routes/category.route.js'
+import { userRoutes } from './routes/user.route.js'
+import { notificationRoutes } from './routes/notification.route.js'
 const app = express()
 
 app.use(express.json())
@@ -19,5 +21,7 @@ app.use(morgan('dev'))
 app.use('/auth', authRoutes)
 app.use('/request', requestRoutes)
 app.use('/categories', categoryRoutes)
+app.use('/users', userRoutes)
+app.use('/notifications', notificationRoutes)
 
 export { app }

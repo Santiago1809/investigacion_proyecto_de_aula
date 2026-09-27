@@ -16,6 +16,7 @@ export type SortOrder = "asc" | "desc";
 export interface CoordinatorRequest extends UserRequest {
   created_at: string;
   requester: string;
+  agent: string | null;
 }
 
 export interface AllRequestsResponse {

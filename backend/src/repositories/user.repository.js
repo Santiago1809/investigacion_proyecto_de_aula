@@ -30,6 +30,18 @@ export async function findRolesByUserId(userId) {
   return rows ?? null
 }
 
+export async function listActiveAgents() {
+  const { rows } = await pool.query(
+    `SELECT u.id, u.full_name, u.email
+     FROM users u
+     INNER JOIN user_roles ur ON ur.user_id = u.id
+     INNER JOIN roles r ON r.id = ur.role_id
+     WHERE u.status = 'ACTIVE' AND r.name = 'AGENTE'
+     ORDER BY u.full_name`,
+  )
+  return rows
+}
+
 export async function insertUser(
   email,
   username,
