@@ -1,6 +1,7 @@
 "use client";
 
 import { createColumnHelper, rowPaginationFeature, tableFeatures, useTable } from "@tanstack/react-table";
+import Link from "next/link";
 import { useState } from "react";
 import { useUserRequests, type UserRequest } from "@/hooks/use-user-requests";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,14 @@ const requestColumns = requestColumnHelper.columns([
   }),
   requestColumnHelper.accessor("title", {
     header: "Titulo",
-    cell: (info) => <span className="font-medium text-slate-900">{info.getValue()}</span>,
+    cell: (info) => (
+      <Link
+        className="font-medium text-slate-900 underline-offset-2 hover:text-emerald-700 hover:underline"
+        href={`/portal/requests/${info.row.original.id}`}
+      >
+        {info.getValue()}
+      </Link>
+    ),
   }),
   requestColumnHelper.accessor("category", {
     header: "Categoria",

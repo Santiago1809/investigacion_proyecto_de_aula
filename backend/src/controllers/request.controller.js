@@ -7,7 +7,9 @@ import {
   getRequestDetail,
   assignRequest,
   updateRequestStatus,
-  getStatusHistory
+  getStatusHistory,
+  addRequestComment,
+  getRequestComments
 } from '../services/request.service.js'
 
 const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
@@ -200,4 +202,44 @@ export async function updateRequestPriorityController(req, res) {
     req.user.id
   )
   return res.status(request.status).json(request)
+}
+
+const createCommentSchema = z
+  .object({
+    content: z
+      .string({ error: 'El comentario es obligatorio' })
+      .trim()
+      .min(1, 'El comentario es obligatorio')
+  })
+  .strict()
+
+export async function createCommentController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  const body = createCommentSchema.safeParse(req.body)
+  if (!params.success || !body.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: (params.success ? body : params).error.flatten()
+    })
+  }
+
+  const comment = await addRequestComment(
+    params.data.id,
+    body.data.content,
+    req.user.id
+  )
+  return res.status(comment.status).json(comment)
+}
+
+export async function getCommentsController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
+
+  const comments = await getRequestComments(params.data.id, req.user)
+  return res.status(comments.status).json(comments)
 }

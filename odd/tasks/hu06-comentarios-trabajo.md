@@ -12,11 +12,16 @@
 
 ## Tasks
 
-- [ ] T1 Backend: `POST /requests/:id/comments` (roles 2,3; body `{content}` non-empty trim) — author = req.user.id, created_at from DB.
-- [ ] T2 Backend: `GET /requests/:id/comments` — visibility by role: SOLICITANTE only own requests, AGENTE only assigned requests, COORDINADOR/AUDITOR all.
-- [ ] T3 Frontend: comments section on request detail (agent/coordinator/console + solicitante/portal): list + add form for roles 2,3.
-- [ ] T4 Functional checks: backend boots, eslint clean, frontend build passes.
+- [x] T1 Backend: `POST /request/:id/comments` (roles 2,3) — zod trim min 1, author = req.user.id, 23503→404, 201 con el comentario.
+- [x] T2 Backend: `GET /request/:id/comments` — visibilidad por rol en una query (SOLICITANTE propias, AGENTE asignadas activas, COORDINADOR/AUDITOR todas); 404 sin filtrar existencia.
+- [x] T3 Frontend: `CommentsSection` compartida en `/console/requests/[id]` y `/portal/requests/[id]`; títulos de ambas tablas linkean al detalle. Form solo para roles 2/3.
+- [x] T4 Checks: backend eslint + boot OK; frontend lint + tsc + build OK.
 
-## Route: delegated writer
+## Route: delegated writer (2 writers: backend, luego frontend)
+
+Notas:
+- `GET /request/:id` vive en la rama HU05 (sin mergear acá): las páginas de detalle muestran UUID + comentarios, sin header de título/estado hasta el merge.
+- Idempotencia/inmutabilidad la garantizan triggers de BD (no edit/delete UI).
+- IDs son UUID strings end-to-end.
 
 Progress / commits:

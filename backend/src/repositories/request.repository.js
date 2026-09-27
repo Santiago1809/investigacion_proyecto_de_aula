@@ -270,3 +270,60 @@ export async function updateRequestPriority(request_id, priority, actor_id) {
     client.release()
   }
 }
+
+export async function createRequestComment(request_id, author_id, content) {
+  const { rows } = await pool.query(
+    `insert into request_comments (request_id, author_id, content)
+      values ($1, $2, $3)
+      returning id, request_id, author_id, content, created_at;`,
+    [request_id, author_id, content]
+  )
+  return rows[0]
+}
+
+export async function canReadRequestComments(
+  request_id,
+  user_id,
+  is_requester,
+  is_agent,
+  is_staff
+) {
+  const { rows } = await pool.query(
+    `select r.id
+      from requests r
+      where r.id = $1
+        and (
+          $3
+          or ($4 and r.requester_id = $2)
+          or ($5 and exists (
+            select 1
+              from request_assignments a
+              where a.request_id = r.id
+                and a.agent_id = $2
+                and a.unassigned_at is null
+          ))
+        );`,
+    [request_id, user_id, is_staff, is_requester, is_agent]
+  )
+  return rows.length > 0
+}
+
+export async function listRequestComments(request_id) {
+  const { rows } = await pool.query(
+    `select
+        rc.id,
+        rc.request_id,
+        rc.author_id,
+        u.full_name as author,
+        rc.content,
+        rc.created_at
+      from
+        request_comments rc
+      inner join users u
+        on rc.author_id = u.id
+      where rc.request_id = $1
+      order by rc.created_at asc, rc.id;`,
+    [request_id]
+  )
+  return rows
+}
