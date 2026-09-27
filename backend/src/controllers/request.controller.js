@@ -5,7 +5,9 @@ import {
   changeRequestPriority,
   getAllRequestsSorted,
   getRequestDetail,
-  assignRequest
+  assignRequest,
+  updateRequestStatus,
+  getStatusHistory
 } from '../services/request.service.js'
 
 const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
@@ -140,6 +142,45 @@ export async function assignRequestController(req, res) {
     body.data.agent_id,
     req.user.id
   )
+  return res.status(result.status).json(result)
+}
+
+const updateStatusSchema = z
+  .object({
+    status: z.enum(['ASIGNADO', 'EN_PROGRESO', 'RESUELTO', 'CERRADO'], {
+      error: 'El estado no es válido'
+    })
+  })
+  .strict()
+
+export async function updateRequestStatusController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  const body = updateStatusSchema.safeParse(req.body)
+  if (!params.success || !body.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: (params.success ? body : params).error.flatten()
+    })
+  }
+
+  const result = await updateRequestStatus(
+    params.data.id,
+    body.data.status,
+    req.user
+  )
+  return res.status(result.status).json(result)
+}
+
+export async function getStatusHistoryController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
+
+  const result = await getStatusHistory(params.data.id)
   return res.status(result.status).json(result)
 }
 

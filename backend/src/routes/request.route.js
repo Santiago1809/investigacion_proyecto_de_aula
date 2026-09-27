@@ -9,7 +9,9 @@ import {
   getAllRequestsController,
   updateRequestPriorityController,
   getRequestByIdController,
-  assignRequestController
+  assignRequestController,
+  updateRequestStatusController,
+  getStatusHistoryController
 } from '../controllers/request.controller.js'
 
 export const requestRoutes = Router()
@@ -47,6 +49,20 @@ requestRoutes.post(
   authenticateToken,
   authorizeRoles(3),
   assignRequestController
+)
+
+requestRoutes.patch(
+  '/:id/status',
+  authenticateToken,
+  authorizeRoles(2, 3),
+  updateRequestStatusController
+)
+
+requestRoutes.get(
+  '/:id/history',
+  authenticateToken,
+  authorizeRoles(2, 3, 4),
+  getStatusHistoryController
 )
 
 requestRoutes.patch(

@@ -4,7 +4,9 @@ import {
   getAllRequests,
   updateRequestPriority,
   getRequestById,
-  assignRequestToAgent
+  assignRequestToAgent,
+  changeRequestStatus,
+  getRequestStatusHistory
 } from '../repositories/request.repository.js'
 
 const MAX_LIMIT = 100
@@ -132,6 +134,51 @@ export async function assignRequest(request_id, agent_id, assigned_by) {
   } catch (error) {
     return mapAssignmentError(error)
   }
+}
+
+const ROLE_COORDINADOR = 3
+
+function mapStatusChangeError(error) {
+  // Errores de negocio levantados por el repository antes de tocar la BD
+  // y el trigger trg_validate_status_transition como red de seguridad.
+  if (error?.code === 'FORBIDDEN') {
+    return { status: 403, message: error.message }
+  }
+  if (
+    error?.code === 'INVALID_TRANSITION' ||
+    error?.message?.includes('Transición de estado no permitida')
+  ) {
+    return {
+      status: 409,
+      message: error.message ?? 'Transición de estado no permitida'
+    }
+  }
+  throw error
+}
+
+export async function updateRequestStatus(request_id, new_status, user) {
+  try {
+    const result = await changeRequestStatus(
+      request_id,
+      new_status,
+      user.id,
+      user.roles.includes(ROLE_COORDINADOR)
+    )
+    if (!result) {
+      return { status: 404, message: 'Solicitud no encontrada' }
+    }
+    return { status: 200, data: result }
+  } catch (error) {
+    return mapStatusChangeError(error)
+  }
+}
+
+export async function getStatusHistory(request_id) {
+  const history = await getRequestStatusHistory(request_id)
+  if (!history) {
+    return { status: 404, message: 'Solicitud no encontrada' }
+  }
+  return { status: 200, data: history }
 }
 
 export async function changeRequestPriority(request_id, priority, actor_id) {
