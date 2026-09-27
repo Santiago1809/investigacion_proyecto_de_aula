@@ -2,6 +2,7 @@
 
 import { createColumnHelper, rowPaginationFeature, tableFeatures, useTable } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import {
   REQUEST_PRIORITIES,
@@ -60,7 +61,14 @@ function PrioritySelect({ request }: { request: CoordinatorRequest }) {
 const requestColumns = requestColumnHelper.columns([
   requestColumnHelper.accessor("title", {
     header: "Titulo",
-    cell: (info) => <span className="font-medium text-slate-900">{info.getValue()}</span>,
+    cell: (info) => (
+      <Link
+        className="font-medium text-slate-900 underline-offset-2 hover:text-emerald-700 hover:underline"
+        href={`/console/requests/${info.row.original.id}`}
+      >
+        {info.getValue()}
+      </Link>
+    ),
   }),
   requestColumnHelper.accessor("requester", {
     header: "Solicitante",
