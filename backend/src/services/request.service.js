@@ -3,6 +3,8 @@ import {
   getUserRequests,
   getAllRequests,
   updateRequestPriority,
+  getRequestById,
+  assignRequestToAgent,
   createRequestComment,
   canReadRequestComments,
   listRequestComments
@@ -82,6 +84,57 @@ export async function getAllRequestsSorted(
     pagination.offset
   )
   return buildPaginatedResponse(request, pagination.page, pagination.limit)
+}
+
+export async function getRequestDetail(request_id) {
+  const request = await getRequestById(request_id)
+  if (!request) {
+    return { status: 404, message: 'Solicitud no encontrada' }
+  }
+  return { status: 200, data: request }
+}
+
+function mapAssignmentError(error) {
+  // Violaciones levantadas por los triggers de la BD (mensajes en español)
+  // y por la restricción de una sola asignación activa por solicitud.
+  if (error?.code === '23505') {
+    return {
+      status: 409,
+      message: 'La solicitud ya tiene un agente asignado'
+    }
+  }
+  if (error?.code === '23503') {
+    return { status: 404, message: 'Solicitud no encontrada' }
+  }
+  if (typeof error?.message === 'string') {
+    if (error.message.includes('Transición de estado no permitida')) {
+      return {
+        status: 409,
+        message: 'La solicitud no está en estado NUEVO y no puede asignarse'
+      }
+    }
+    if (
+      error.message.includes('no está activo') ||
+      error.message.includes('no tiene rol de AGENTE') ||
+      error.message.includes('Solo un COORDINADOR')
+    ) {
+      return { status: 400, message: error.message }
+    }
+  }
+  return { status: 500, message: 'Error asignando la solicitud' }
+}
+
+export async function assignRequest(request_id, agent_id, assigned_by) {
+  try {
+    const assignment = await assignRequestToAgent(
+      request_id,
+      agent_id,
+      assigned_by
+    )
+    return { status: 201, data: assignment }
+  } catch (error) {
+    return mapAssignmentError(error)
+  }
 }
 
 export async function changeRequestPriority(request_id, priority, actor_id) {

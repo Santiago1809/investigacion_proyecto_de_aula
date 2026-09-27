@@ -8,6 +8,8 @@ import {
   getUserRequestController,
   getAllRequestsController,
   updateRequestPriorityController,
+  getRequestByIdController,
+  assignRequestController,
   createCommentController,
   getCommentsController
 } from '../controllers/request.controller.js'
@@ -33,6 +35,20 @@ requestRoutes.get(
   authenticateToken,
   authorizeRoles(3),
   getAllRequestsController
+)
+
+requestRoutes.get(
+  '/:id',
+  authenticateToken,
+  authorizeRoles(1, 2, 3, 4),
+  getRequestByIdController
+)
+
+requestRoutes.post(
+  '/:id/assign',
+  authenticateToken,
+  authorizeRoles(3),
+  assignRequestController
 )
 
 requestRoutes.patch(
