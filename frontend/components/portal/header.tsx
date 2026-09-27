@@ -5,23 +5,22 @@ import { useSession } from "next-auth/react";
 import { Bell, Search } from "lucide-react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+import { useNotifications } from "@/hooks/use-notifications";
 
-const MOCK_NOTIFICATIONS = [
-  {
-    title: "Solicitud actualizada",
-    description: "La solicitud SOL-1042 cambió de estado.",
-    time: "Hace 8 min",
-  },
-  {
-    title: "Nuevo comentario",
-    description: "Soporte agregó una nota a tu solicitud.",
-    time: "Hace 32 min",
-  },
-];
+function formatNotificationTime(date: string) {
+  return new Date(date).toLocaleString("es-CO", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default function PortalHeader() {
   const { data: session } = useSession();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { data: notifications } = useNotifications();
+  const unread = notifications?.filter((item) => item.read_at === null) ?? [];
   const userName = session?.user.name ?? "Usuario";
   const userInitial = userName.charAt(0).toUpperCase();
 
@@ -45,9 +44,11 @@ export default function PortalHeader() {
           onClick={() => setNotificationsOpen((open) => !open)}
         >
           <Bell className="size-5" />
-          <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white ring-2 ring-slate-50">
-            {MOCK_NOTIFICATIONS.length}
-          </span>
+          {unread.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white ring-2 ring-slate-50">
+              {unread.length}
+            </span>
+          )}
         </Button>
         {notificationsOpen && (
           <div className="absolute right-0 top-12 z-50 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
@@ -56,7 +57,11 @@ export default function PortalHeader() {
                 <p className="text-sm font-semibold text-slate-900">
                   Notificaciones
                 </p>
-                <p className="text-xs text-slate-400">2 pendientes</p>
+                <p className="text-xs text-slate-400">
+                  {unread.length === 1
+                    ? "1 pendiente"
+                    : `${unread.length} pendientes`}
+                </p>
               </div>
               <button
                 type="button"
@@ -66,25 +71,41 @@ export default function PortalHeader() {
                 Cerrar
               </button>
             </div>
-            <div className="divide-y divide-slate-100">
-              {MOCK_NOTIFICATIONS.map((notification) => (
-                <div key={notification.title} className="px-4 py-3">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {notification.title}
-                      </p>
-                      <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                        {notification.description}
-                      </p>
-                      <p className="mt-1 text-[11px] font-medium text-slate-400">
-                        {notification.time}
-                      </p>
+            <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
+              {!notifications || notifications.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-slate-500">
+                  No tienes notificaciones.
+                </p>
+              ) : (
+                notifications.map((notification) => {
+                  const isUnread = notification.read_at === null;
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`px-4 py-3 ${isUnread ? "bg-emerald-50/60" : ""}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className={`mt-1.5 size-2 shrink-0 rounded-full ${
+                            isUnread ? "bg-emerald-500" : "bg-slate-300"
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800">
+                            {isUnread ? "Nueva notificación" : "Notificación"}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                            {notification.message}
+                          </p>
+                          <p className="mt-1 text-[11px] font-medium text-slate-400">
+                            {formatNotificationTime(notification.created_at)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })
+              )}
             </div>
           </div>
         )}

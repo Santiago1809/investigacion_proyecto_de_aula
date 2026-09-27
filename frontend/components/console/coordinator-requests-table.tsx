@@ -12,6 +12,7 @@ import {
   type RequestSortBy,
   type SortOrder,
 } from "@/hooks/use-all-requests";
+import { AssignAgentCell } from "@/components/console/assign-agent-cell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -79,6 +80,11 @@ const requestColumns = requestColumnHelper.columns([
         {info.getValue()}
       </span>
     ),
+  }),
+  requestColumnHelper.display({
+    id: "assign",
+    header: "Asignar",
+    cell: (info) => <AssignAgentCell request={info.row.original} />,
   }),
   requestColumnHelper.accessor("created_at", {
     header: "Fecha",
