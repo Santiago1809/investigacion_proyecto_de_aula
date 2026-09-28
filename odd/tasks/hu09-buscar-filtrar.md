@@ -12,16 +12,18 @@
 
 ## Tasks
 
-- [ ] T1 Backend: extender `GET /request` con `status`, `priority`, `category_id` (zod enums, combinables con `q`), un único WHERE con todos los criterios AND; cada filtro se omite si no viene. Mismo alcance por rol que hoy: solicitante solo propias, agente solo asignadas vigentes, coordinador/auditor todas.
-- [ ] T2 Backend: verificar que la respuesta indique qué filtros se aplicaron (`applied_filters`) para que el cliente no adivine.
-- [ ] T3 Frontend portal: selects de estado/prioridad/categoría combinables con el buscador existente; limpiar todos los filtros; contador/estado vacío coherente.
-- [ ] T4 Frontend consola (coordinador): mismos filtros sobre el listado global.
-- [ ] T5 Checks: eslint backend + boot; frontend lint + tsc + build.
+- [x] T1 Backend: `GET /request` y `GET /request/all` aceptan `q`, `status`, `priority`, `category_id` combinables en un único WHERE con AND; cada filtro se omite si no viene. Alcance por rol intacto.
+- [x] T2 Backend: ambas respuestas incluyen `applied_filters` con solo los filtros aplicados; `status`/`data`/`pagination` sin cambios.
+- [x] T3 Frontend portal: `FilterToolbar` compartida (texto + estado + prioridad + categoría) sobre "mis solicitudes", "Limpiar" y estado vacío coherente.
+- [x] T4 Frontend consola: mismos filtros sobre el listado global, ordenamiento y paginación intactos.
+- [x] T5 Checks: eslint backend + boot OK; frontend lint + tsc + build OK.
 
 ## Route: delegated writer (backend, luego frontend)
 
 Notas:
-- Reutiliza `useUserRequests` y `useAllRequests`; no crear otro cliente HTTP.
-- IDs UUID string; las categorías tienen id numérico SMALLINT.
+- Enviar `value || undefined`: un string vacío en `category_id` dispara 400 (`z.coerce.number('')` → 0 → no positiva). axios descarta los `undefined`.
+- `status`/`priority` se comparan sin cast (`r.status = $n`); castear a `text` rompe el enum de Postgres.
+- Los filtros van en la query key de React Query; `applied_filters` del backend alimenta el resumen "Filtros: …".
+- Pendiente conocido (preexistente, fuera de alcance): el rol AGENTE no tiene listado propio — `/request` siempre filtra por `requester_id` y `app/work/` sigue stub.
 
 Progress / commits:

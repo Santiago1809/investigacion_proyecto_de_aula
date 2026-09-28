@@ -1,10 +1,46 @@
 import { pool } from '../config/database.js'
 
-export async function getUserRequests(user_id, limit, offset, q) {
-  // $4 null (q vacío o ausente) mantiene el comportamiento actual; con valor
-  // busca en título y descripción. El patrón %q% se arma acá, siempre
-  // parametrizado.
-  const search = q ? `%${q}%` : null
+// Filtros combinables del listado. Cada criterio se agrega al WHERE solo si
+// viene en el query y todos se combinan con AND, así la combinación es
+// consistente entre los dos listados. Los valores viajan siempre
+// parametrizados: el placeholder se calcula con el índice que le toca en el
+// array de parámetros, nunca se interpola el valor.
+export const REQUEST_FILTER_KEYS = ['q', 'status', 'priority', 'category_id']
+
+const FILTER_PREDICATES = {
+  // El patrón %q% se arma acá, como ya se hacía. title/description son texto,
+  // por eso el parámetro no lleva cast.
+  q: (filters, values) => {
+    values.push(`%${filters.q}%`)
+    return `(r.title ilike $${values.length} or r.description ilike $${values.length})`
+  },
+  // status/priority son ENUM y category_id SMALLINT: la comparación con el
+  // placeholder sin cast deja que PostgreSQL infiera el tipo de la columna.
+  status: (filters, values) => {
+    values.push(filters.status)
+    return `r.status = $${values.length}`
+  },
+  priority: (filters, values) => {
+    values.push(filters.priority)
+    return `r.priority = $${values.length}`
+  },
+  category_id: (filters, values) => {
+    values.push(filters.category_id)
+    return `r.category_id = $${values.length}`
+  }
+}
+
+function buildFilterPredicates(filters, values) {
+  return REQUEST_FILTER_KEYS.filter(
+    (key) => filters[key] !== undefined
+  ).map((key) => FILTER_PREDICATES[key](filters, values))
+}
+
+export async function getUserRequests(user_id, limit, offset, filters = {}) {
+  const values = [user_id]
+  // El alcance por rol no cambia: el solicitante solo ve las suyas.
+  const conditions = ['r.requester_id = $1', ...buildFilterPredicates(filters, values)]
+  values.push(limit, offset)
   const { rows } = await pool.query(
     `select
         r.id,
@@ -18,13 +54,10 @@ export async function getUserRequests(user_id, limit, offset, q) {
         requests r
       inner join categories c
       on r.category_id = c.id
-      where r.requester_id  = $1
-        and ($4::text is null
-             or r.title ilike $4
-             or r.description ilike $4)
+      where ${conditions.join(' and ')}
       order by r.created_at desc
-      limit $2 offset $3;`,
-    [user_id, limit, offset, search]
+      limit $${values.length - 1} offset $${values.length};`,
+    values
   )
   return rows
 }
@@ -52,9 +85,14 @@ const SORT_COLUMNS = {
   created_at: 'r.created_at'
 }
 
-export async function getAllRequests(sortBy, order, limit, offset) {
+export async function getAllRequests(sortBy, order, limit, offset, filters = {}) {
   const column = SORT_COLUMNS[sortBy] ?? SORT_COLUMNS.created_at
   const direction = order === 'asc' ? 'asc' : 'desc'
+  const values = []
+  const conditions = buildFilterPredicates(filters, values)
+  values.push(limit, offset)
+  // Sin filtros no hay WHERE: el listado global sigue mostrando todo.
+  const where = conditions.length ? `where ${conditions.join(' and ')}` : ''
   const { rows } = await pool.query(
     `select
         r.id,
@@ -70,15 +108,16 @@ export async function getAllRequests(sortBy, order, limit, offset) {
       from
         requests r
       inner join categories c
-      on r.category_id = c.id
+        on r.category_id = c.id
       inner join users u
-      on r.requester_id = u.id
+        on r.requester_id = u.id
       left join request_assignments ra
         on ra.request_id = r.id and ra.unassigned_at is null
       left join users ua on ua.id = ra.agent_id
+      ${where}
       order by ${column} ${direction}, r.created_at desc, r.id
-      limit $1 offset $2;`,
-    [limit, offset]
+      limit $${values.length - 1} offset $${values.length};`,
+    values
   )
   return rows
 }

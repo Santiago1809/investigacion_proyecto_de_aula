@@ -11,7 +11,8 @@ import {
   reopenResolvedRequest,
   createRequestComment,
   canReadRequestComments,
-  listRequestComments
+  listRequestComments,
+  REQUEST_FILTER_KEYS
 } from '../repositories/request.repository.js'
 
 const MAX_LIMIT = 100
@@ -22,7 +23,17 @@ function normalizePagination(page, limit) {
   return { page, limit, offset: (page - 1) * limit }
 }
 
-function buildPaginatedResponse(request, page, limit) {
+// Solo los filtros que venían en el query, para que el cliente sepa qué se
+// aplicó sin adivinar. Los criterios ausentes no aparecen.
+function buildAppliedFilters(filters) {
+  return Object.fromEntries(
+    REQUEST_FILTER_KEYS.filter((key) => filters[key] !== undefined).map(
+      (key) => [key, filters[key]]
+    )
+  )
+}
+
+function buildPaginatedResponse(request, page, limit, applied_filters) {
   const totalItems = request.length ? Number(request[0].total_items) : 0
   const totalPages = Math.ceil(totalItems / limit)
   return {
@@ -40,7 +51,8 @@ function buildPaginatedResponse(request, page, limit) {
       totalPages,
       hasNext: page < totalPages,
       hasPrev: page > 1
-    }
+    },
+    applied_filters
   }
 }
 
@@ -64,31 +76,48 @@ export async function createRequest(
   return { status: 201, request: request[0] }
 }
 
-export async function getRequestsByUser(user_id, page = 1, limit = 10, q) {
+export async function getRequestsByUser(
+  user_id,
+  page = 1,
+  limit = 10,
+  filters = {}
+) {
   const pagination = normalizePagination(page, limit)
   const request = await getUserRequests(
     user_id,
     pagination.limit,
     pagination.offset,
-    q
+    filters
   )
-  return buildPaginatedResponse(request, pagination.page, pagination.limit)
+  return buildPaginatedResponse(
+    request,
+    pagination.page,
+    pagination.limit,
+    buildAppliedFilters(filters)
+  )
 }
 
 export async function getAllRequestsSorted(
   sortBy = 'created_at',
   order = 'desc',
   page = 1,
-  limit = 10
+  limit = 10,
+  filters = {}
 ) {
   const pagination = normalizePagination(page, limit)
   const request = await getAllRequests(
     sortBy,
     order,
     pagination.limit,
-    pagination.offset
+    pagination.offset,
+    filters
   )
-  return buildPaginatedResponse(request, pagination.page, pagination.limit)
+  return buildPaginatedResponse(
+    request,
+    pagination.page,
+    pagination.limit,
+    buildAppliedFilters(filters)
+  )
 }
 
 export async function getRequestDetail(request_id) {
