@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { api } from "@/lib/api";
+import type { RequestStatus } from "@/hooks/use-request-status";
 
 export interface UserRequest {
   id: number | string;
@@ -30,14 +31,40 @@ export interface UserRequestsResponse {
   status: number;
   data: UserRequest[];
   pagination: RequestsPagination;
+  applied_filters: RequestFilters;
 }
 
-export function useUserRequests(page: number, limit: number, q?: string) {
+export type RequestPriority = "BAJA" | "MEDIA" | "ALTA" | "CRITICA";
+
+// Filtros combinables del listado (se aplican con AND). Es la misma forma que
+// devuelve `applied_filters`, así que la respuesta y el estado local comparten
+// tipo.
+export interface RequestFilters {
+  q?: string;
+  status?: RequestStatus;
+  priority?: RequestPriority;
+  category_id?: number;
+}
+
+export function useUserRequests(
+  page: number,
+  limit: number,
+  filters: RequestFilters = {},
+) {
   return useQuery({
-    queryKey: ["requests", page, limit, q ?? ""],
+    queryKey: ["requests", page, limit, filters],
     queryFn: async () => {
       const response = await api.get<UserRequestsResponse>("/request", {
-        params: q ? { page, limit, q } : { page, limit },
+        // El backend responde 400 con un valor vacío (ej. category_id=), así que
+        // cada filtro viaja solo cuando tiene valor.
+        params: {
+          page,
+          limit,
+          q: filters.q || undefined,
+          status: filters.status || undefined,
+          priority: filters.priority || undefined,
+          category_id: filters.category_id || undefined,
+        },
       });
 
       return response.data;
@@ -46,8 +73,6 @@ export function useUserRequests(page: number, limit: number, q?: string) {
     staleTime: 30_000,
   });
 }
-
-export type RequestPriority = "BAJA" | "MEDIA" | "ALTA" | "CRITICA";
 
 export interface CreateRequestPayload {
   title: string;

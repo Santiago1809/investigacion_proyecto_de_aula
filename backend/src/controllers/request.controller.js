@@ -15,12 +15,41 @@ import {
 } from '../services/request.service.js'
 
 const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
+const REQUEST_STATUSES = [
+  'NUEVO',
+  'ASIGNADO',
+  'EN_PROGRESO',
+  'RESUELTO',
+  'CERRADO'
+]
+
+// Filtros opcionales del listado, combinables entre sí. Cada uno se omite del
+// WHERE si no viene; un valor desconocido es un 400 con el mismo shape de
+// 'Datos de entrada inválidos' que el resto de la feature.
+const listFilterShape = {
+  q: z
+    .string()
+    .trim()
+    .max(100, 'La búsqueda no puede superar los 100 caracteres')
+    .optional(),
+  status: z
+    .enum(REQUEST_STATUSES, { error: 'El estado no es válido' })
+    .optional(),
+  priority: z
+    .enum(REQUEST_PRIORITIES, { error: 'La prioridad no es válida' })
+    .optional(),
+  category_id: z
+    .coerce.number({ error: 'La categoría no es válida' })
+    .int('La categoría debe ser un número entero')
+    .positive('La categoría no es válida')
+    .optional()
+}
 
 const getUserRequestSchema = z
   .object({
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().default(10),
-    q: z.string().trim().max(100, 'La búsqueda no puede superar los 100 caracteres').optional()
+    ...listFilterShape
   })
   .strict()
 
@@ -52,7 +81,8 @@ const getAllRequestsSchema = z
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().positive().default(10),
     sortBy: z.enum(['priority', 'status', 'created_at']).default('created_at'),
-    order: z.enum(['asc', 'desc']).default('desc')
+    order: z.enum(['asc', 'desc']).default('desc'),
+    ...listFilterShape
   })
   .strict()
 
@@ -74,9 +104,11 @@ export async function getUserRequestController(req, res) {
       details: params.error.flatten()
     })
   }
-  const { page, limit, q } = params.data
+  // El esquema es strict, así que en filters solo quedan los filtros opcionales
+  // (q/status/priority/category_id), presentes solo si vinieron.
+  const { page, limit, ...filters } = params.data
 
-  const request = await getRequestsByUser(req.user.id, page, limit, q)
+  const request = await getRequestsByUser(req.user.id, page, limit, filters)
   return res.status(request.status).json(request)
 }
 
@@ -107,9 +139,15 @@ export async function getAllRequestsController(req, res) {
       details: params.error.flatten()
     })
   }
-  const { sortBy, order, page, limit } = params.data
+  const { sortBy, order, page, limit, ...filters } = params.data
 
-  const request = await getAllRequestsSorted(sortBy, order, page, limit)
+  const request = await getAllRequestsSorted(
+    sortBy,
+    order,
+    page,
+    limit,
+    filters
+  )
   return res.status(request.status).json(request)
 }
 

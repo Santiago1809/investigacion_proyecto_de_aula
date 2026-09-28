@@ -15,7 +15,9 @@ import {
 } from "@/hooks/use-all-requests";
 import { AssignAgentCell } from "@/components/console/assign-agent-cell";
 import { RequestStatusCell } from "@/components/console/request-status-cell";
+import { RequestsFilterToolbar } from "@/components/requests/filter-toolbar";
 import type { RequestStatus } from "@/hooks/use-request-status";
+import type { RequestFilters } from "@/hooks/use-user-requests";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -141,10 +143,19 @@ export function CoordinatorRequestsTable() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<RequestSortBy>("created_at");
   const [order, setOrder] = useState<SortOrder>("desc");
+  const [filters, setFilters] = useState<RequestFilters>({});
   const { data, error, isError, isFetching, isPending, refetch } =
-    useAllRequests(page, PAGE_SIZE, sortBy, order);
+    useAllRequests(page, PAGE_SIZE, sortBy, order, filters);
   const requests = data?.data ?? [];
   const pagination = data?.pagination;
+  // El backend devuelve solo los filtros que aplicó: la UI no los adivina.
+  const appliedFilters = data?.applied_filters ?? {};
+  const hasAppliedFilters = Object.values(appliedFilters).some(Boolean);
+
+  function applyFilters(patch: Partial<RequestFilters>) {
+    setFilters((current) => ({ ...current, ...patch }));
+    setPage(1);
+  }
   const table = useTable({
     features: requestTableFeatures,
     data: requests,
@@ -241,6 +252,17 @@ export function CoordinatorRequestsTable() {
 
   return (
     <section aria-label="Solicitudes" className="space-y-4">
+      <RequestsFilterToolbar
+        appliedFilters={appliedFilters}
+        filters={filters}
+        onChange={applyFilters}
+        onClear={() => {
+          setFilters({});
+          setPage(1);
+        }}
+        onSearch={(text) => applyFilters({ q: text || undefined })}
+      />
+
       <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${isFetching ? "opacity-70" : ""}`}>
         <Table aria-label="Solicitudes">
           {tableHeader}
@@ -248,7 +270,9 @@ export function CoordinatorRequestsTable() {
             {requests.length === 0 ? (
               <TableRow>
                 <TableCell className="h-32 text-center text-slate-500" colSpan={requestColumns.length}>
-                  No hay solicitudes para mostrar.
+                  {hasAppliedFilters
+                    ? "Ninguna solicitud coincide con los filtros aplicados."
+                    : "No hay solicitudes para mostrar."}
                 </TableCell>
               </TableRow>
             ) : (
