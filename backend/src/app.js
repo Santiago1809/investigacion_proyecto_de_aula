@@ -7,6 +7,7 @@ import { categoryRoutes } from './routes/category.route.js'
 import { userRoutes } from './routes/user.route.js'
 import { notificationRoutes } from './routes/notification.route.js'
 import { metricRoutes } from './routes/metric.route.js'
+import { reportRoutes } from './routes/report.route.js'
 import { auditRoutes } from './routes/audit.route.js'
 const app = express()
 
@@ -26,6 +27,7 @@ app.use('/categories', categoryRoutes)
 app.use('/users', userRoutes)
 app.use('/notifications', notificationRoutes)
 app.use('/metrics', metricRoutes)
+app.use('/reports', reportRoutes)
 app.use('/audit', auditRoutes)
 
 export { app }
