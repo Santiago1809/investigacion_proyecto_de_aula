@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch server.js",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "check": "node src/services/report.service.selfcheck.js"
   },
   "keywords": [],
   "author": "",
