@@ -6,6 +6,7 @@ import { requestRoutes } from './routes/request.route.js'
 import { categoryRoutes } from './routes/category.route.js'
 import { userRoutes } from './routes/user.route.js'
 import { notificationRoutes } from './routes/notification.route.js'
+import { metricRoutes } from './routes/metric.route.js'
 const app = express()
 
 app.use(express.json())
@@ -23,5 +24,6 @@ app.use('/request', requestRoutes)
 app.use('/categories', categoryRoutes)
 app.use('/users', userRoutes)
 app.use('/notifications', notificationRoutes)
+app.use('/metrics', metricRoutes)
 
 export { app }
