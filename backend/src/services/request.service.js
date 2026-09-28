@@ -7,6 +7,8 @@ import {
   assignRequestToAgent,
   changeRequestStatus,
   getRequestStatusHistory,
+  confirmRequestResolution,
+  reopenResolvedRequest,
   createRequestComment,
   canReadRequestComments,
   listRequestComments
@@ -62,12 +64,13 @@ export async function createRequest(
   return { status: 201, request: request[0] }
 }
 
-export async function getRequestsByUser(user_id, page = 1, limit = 10) {
+export async function getRequestsByUser(user_id, page = 1, limit = 10, q) {
   const pagination = normalizePagination(page, limit)
   const request = await getUserRequests(
     user_id,
     pagination.limit,
-    pagination.offset
+    pagination.offset,
+    q
   )
   return buildPaginatedResponse(request, pagination.page, pagination.limit)
 }
@@ -167,6 +170,30 @@ export async function updateRequestStatus(request_id, new_status, user) {
       user.id,
       user.roles.includes(ROLE_COORDINADOR)
     )
+    if (!result) {
+      return { status: 404, message: 'Solicitud no encontrada' }
+    }
+    return { status: 200, data: result }
+  } catch (error) {
+    return mapStatusChangeError(error)
+  }
+}
+
+export async function confirmSolution(request_id, user) {
+  try {
+    const result = await confirmRequestResolution(request_id, user.id)
+    if (!result) {
+      return { status: 404, message: 'Solicitud no encontrada' }
+    }
+    return { status: 200, data: result }
+  } catch (error) {
+    return mapStatusChangeError(error)
+  }
+}
+
+export async function reopenRequest(request_id, reason, user) {
+  try {
+    const result = await reopenResolvedRequest(request_id, user.id, reason)
     if (!result) {
       return { status: 404, message: 'Solicitud no encontrada' }
     }

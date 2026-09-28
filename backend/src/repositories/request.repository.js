@@ -1,6 +1,10 @@
 import { pool } from '../config/database.js'
 
-export async function getUserRequests(user_id, limit, offset) {
+export async function getUserRequests(user_id, limit, offset, q) {
+  // $4 null (q vacío o ausente) mantiene el comportamiento actual; con valor
+  // busca en título y descripción. El patrón %q% se arma acá, siempre
+  // parametrizado.
+  const search = q ? `%${q}%` : null
   const { rows } = await pool.query(
     `select
         r.id,
@@ -15,9 +19,12 @@ export async function getUserRequests(user_id, limit, offset) {
       inner join categories c
       on r.category_id = c.id
       where r.requester_id  = $1
+        and ($4::text is null
+             or r.title ilike $4
+             or r.description ilike $4)
       order by r.created_at desc
       limit $2 offset $3;`,
-    [user_id, limit, offset]
+    [user_id, limit, offset, search]
   )
   return rows
 }
@@ -263,6 +270,114 @@ export async function updateRequestPriority(request_id, priority, actor_id) {
     )
     await client.query('commit')
     return rows[0] ?? null
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+export async function confirmRequestResolution(request_id, user_id) {
+  // El solicitante confirma la solución: RESUELTO -> CERRADO. El trigger
+  // trg_audit_status_change no cubre SOLUTION_CONFIRMED, así que el evento de
+  // auditoría se inserta explícito, todo en la misma transacción y con
+  // app.current_user_id seteado (trg_set_closed_at pone closed_at).
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const { rows: found } = await client.query(
+      `select id, status, requester_id from requests where id = $1 for update;`,
+      [request_id]
+    )
+    const request = found[0]
+    if (!request) {
+      await client.query('rollback')
+      return null
+    }
+    if (request.requester_id !== user_id) {
+      await client.query('rollback')
+      const error = new Error('Solo el solicitante puede confirmar la solución')
+      error.code = 'FORBIDDEN'
+      throw error
+    }
+    if (request.status !== 'RESUELTO') {
+      await client.query('rollback')
+      const error = new Error('Solo una solicitud RESUELTA puede confirmarse')
+      error.code = 'INVALID_TRANSITION'
+      throw error
+    }
+    await client.query("select set_config('app.current_user_id', $1, true)", [
+      user_id
+    ])
+    const { rows } = await client.query(
+      `update requests set status = 'CERRADO' where id = $1
+        returning id, status, closed_at, updated_at;`,
+      [request_id]
+    )
+    await client.query(
+      `insert into audit_events (request_id, actor_id, action, field_name, old_value, new_value)
+        values ($1, $2, 'SOLUTION_CONFIRMED', 'status', 'RESUELTO', 'CERRADO');`,
+      [request_id, user_id]
+    )
+    await client.query('commit')
+    return rows[0]
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+export async function reopenResolvedRequest(request_id, user_id, reason) {
+  // El solicitante reabre su solicitud: RESUELTO -> EN_PROGRESO. El motivo se
+  // registra como comentario (trg_comment_audit audita) y el evento
+  // REQUEST_REOPENED se inserta explícito, todo en la misma transacción.
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const { rows: found } = await client.query(
+      `select id, status, requester_id from requests where id = $1 for update;`,
+      [request_id]
+    )
+    const request = found[0]
+    if (!request) {
+      await client.query('rollback')
+      return null
+    }
+    if (request.requester_id !== user_id) {
+      await client.query('rollback')
+      const error = new Error('Solo el solicitante puede reabrir la solicitud')
+      error.code = 'FORBIDDEN'
+      throw error
+    }
+    if (request.status !== 'RESUELTO') {
+      await client.query('rollback')
+      const error = new Error('Solo una solicitud RESUELTA puede reabrirse')
+      error.code = 'INVALID_TRANSITION'
+      throw error
+    }
+    await client.query("select set_config('app.current_user_id', $1, true)", [
+      user_id
+    ])
+    const { rows } = await client.query(
+      `update requests set status = 'EN_PROGRESO' where id = $1
+        returning id, status, updated_at, resolved_at, closed_at;`,
+      [request_id]
+    )
+    await client.query(
+      `insert into request_comments (request_id, author_id, content)
+        values ($1, $2, $3);`,
+      [request_id, user_id, reason]
+    )
+    await client.query(
+      `insert into audit_events (request_id, actor_id, action, field_name, old_value, new_value)
+        values ($1, $2, 'REQUEST_REOPENED', 'status', 'RESUELTO', 'EN_PROGRESO');`,
+      [request_id, user_id]
+    )
+    await client.query('commit')
+    return rows[0]
   } catch (error) {
     await client.query('rollback')
     throw error

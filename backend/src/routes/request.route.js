@@ -12,6 +12,8 @@ import {
   assignRequestController,
   updateRequestStatusController,
   getStatusHistoryController,
+  confirmRequestController,
+  reopenRequestController,
   createCommentController,
   getCommentsController
 } from '../controllers/request.controller.js'
@@ -44,6 +46,20 @@ requestRoutes.get(
   authenticateToken,
   authorizeRoles(1, 2, 3, 4),
   getRequestByIdController
+)
+
+requestRoutes.post(
+  '/:id/confirm',
+  authenticateToken,
+  authorizeRoles(1),
+  confirmRequestController
+)
+
+requestRoutes.post(
+  '/:id/reopen',
+  authenticateToken,
+  authorizeRoles(1),
+  reopenRequestController
 )
 
 requestRoutes.post(

@@ -3,8 +3,15 @@
 import { createColumnHelper, rowPaginationFeature, tableFeatures, useTable } from "@tanstack/react-table";
 import Link from "next/link";
 import { useState } from "react";
-import { useUserRequests, type UserRequest } from "@/hooks/use-user-requests";
+import {
+  apiErrorMessage,
+  useConfirmSolution,
+  useReopenRequest,
+  useUserRequests,
+  type UserRequest,
+} from "@/hooks/use-user-requests";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -79,14 +86,143 @@ function LoadingRows() {
 
 export function RequestsTable() {
   const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
+  const [reopenId, setReopenId] = useState<string | null>(null);
+  const [reopenReason, setReopenReason] = useState("");
+  const [actionError, setActionError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const { data, error, isError, isFetching, isPending, refetch } =
-    useUserRequests(page, PAGE_SIZE);
+    useUserRequests(page, PAGE_SIZE, q);
+  const confirmSolution = useConfirmSolution();
+  const reopenRequest = useReopenRequest();
   const requests = data?.data ?? [];
   const pagination = data?.pagination;
+
+  const handleSearch = () => {
+    setQ(searchInput.trim());
+    setPage(1);
+  };
+
+  const handleConfirm = (requestId: string) => {
+    setActionError(null);
+    confirmSolution.mutate(requestId, {
+      onError: (mutationError) => {
+        setActionError({
+          id: requestId,
+          message: apiErrorMessage(
+            mutationError,
+            "No se pudo confirmar la solución.",
+          ),
+        });
+      },
+    });
+  };
+
+  const handleConfirmReopen = (requestId: string) => {
+    setActionError(null);
+    reopenRequest.mutate(
+      { requestId, reason: reopenReason.trim() },
+      {
+        onError: (mutationError) => {
+          setActionError({
+            id: requestId,
+            message: apiErrorMessage(
+              mutationError,
+              "No se pudo reabrir la solicitud.",
+            ),
+          });
+        },
+      },
+    );
+  };
+
+  const columns = [
+    ...requestColumns,
+    requestColumnHelper.display({
+      id: "actions",
+      header: "Acciones",
+      cell: (info) => {
+        const request = info.row.original;
+
+        if (request.status !== "RESUELTO") {
+          return <span className="text-slate-300">—</span>;
+        }
+
+        const requestId = String(request.id);
+
+        return (
+          <div className="flex flex-col gap-1.5">
+            {reopenId === requestId ? (
+              <>
+                <textarea
+                  aria-label="Motivo de reapertura"
+                  className="w-56 rounded-lg border border-slate-300 px-2 py-1 text-xs outline-none focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/20"
+                  placeholder="¿Por qué reabres esta solicitud?"
+                  rows={2}
+                  value={reopenReason}
+                  onChange={(event) => setReopenReason(event.target.value)}
+                />
+                <div className="flex gap-1.5">
+                  <Button
+                    disabled={!reopenReason.trim() || reopenRequest.isPending}
+                    onClick={() => handleConfirmReopen(requestId)}
+                    size="xs"
+                    type="button"
+                  >
+                    Confirmar reapertura
+                  </Button>
+                  <Button
+                    onClick={() => setReopenId(null)}
+                    size="xs"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex gap-1.5">
+                <Button
+                  disabled={confirmSolution.isPending || reopenRequest.isPending}
+                  onClick={() => handleConfirm(requestId)}
+                  size="xs"
+                  type="button"
+                >
+                  Confirmar solución
+                </Button>
+                <Button
+                  disabled={confirmSolution.isPending || reopenRequest.isPending}
+                  onClick={() => {
+                    setReopenId(requestId);
+                    setReopenReason("");
+                  }}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  Reabrir
+                </Button>
+              </div>
+            )}
+            {actionError?.id === requestId && (
+              <p className="max-w-56 text-xs text-red-600" role="alert">
+                {actionError.message}
+              </p>
+            )}
+          </div>
+        );
+      },
+    }),
+  ];
+
   const table = useTable({
     features: requestTableFeatures,
     data: requests,
-    columns: requestColumns,
+    columns,
     manualPagination: true,
     pageCount: pagination?.totalPages ?? -1,
     state: {
@@ -144,6 +280,41 @@ export function RequestsTable() {
 
   return (
     <section aria-label="Solicitudes" className="space-y-4">
+      <form
+        aria-label="Buscar solicitudes"
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleSearch();
+        }}
+      >
+        <Input
+          aria-label="Buscar solicitudes"
+          className="max-w-xs"
+          placeholder="Buscar por titulo o descripcion"
+          type="search"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+        />
+        <Button type="submit" variant="outline">
+          Buscar
+        </Button>
+        {q && (
+          <Button
+            onClick={() => {
+              setSearchInput("");
+              setQ("");
+              setPage(1);
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Limpiar
+          </Button>
+        )}
+      </form>
+
       <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${isFetching ? "opacity-70" : ""}`}>
         <Table aria-label="Solicitudes">
           <TableHeader>
@@ -160,8 +331,10 @@ export function RequestsTable() {
           <TableBody>
             {requests.length === 0 ? (
               <TableRow>
-                <TableCell className="h-32 text-center text-slate-500" colSpan={requestColumns.length}>
-                  No hay solicitudes para mostrar.
+                <TableCell className="h-32 text-center text-slate-500" colSpan={columns.length}>
+                  {q
+                    ? "No hay solicitudes que coincidan con la busqueda."
+                    : "No hay solicitudes para mostrar."}
                 </TableCell>
               </TableRow>
             ) : (
