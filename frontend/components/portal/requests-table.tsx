@@ -8,10 +8,11 @@ import {
   useConfirmSolution,
   useReopenRequest,
   useUserRequests,
+  type RequestFilters,
   type UserRequest,
 } from "@/hooks/use-user-requests";
+import { RequestsFilterToolbar } from "@/components/requests/filter-toolbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -86,8 +87,7 @@ function LoadingRows() {
 
 export function RequestsTable() {
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
-  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<RequestFilters>({});
   const [reopenId, setReopenId] = useState<string | null>(null);
   const [reopenReason, setReopenReason] = useState("");
   const [actionError, setActionError] = useState<{
@@ -95,14 +95,17 @@ export function RequestsTable() {
     message: string;
   } | null>(null);
   const { data, error, isError, isFetching, isPending, refetch } =
-    useUserRequests(page, PAGE_SIZE, q);
+    useUserRequests(page, PAGE_SIZE, filters);
   const confirmSolution = useConfirmSolution();
   const reopenRequest = useReopenRequest();
   const requests = data?.data ?? [];
   const pagination = data?.pagination;
+  // El backend devuelve solo los filtros que aplicó: la UI no los adivina.
+  const appliedFilters = data?.applied_filters ?? {};
+  const hasAppliedFilters = Object.values(appliedFilters).some(Boolean);
 
-  const handleSearch = () => {
-    setQ(searchInput.trim());
+  const applyFilters = (patch: Partial<RequestFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   };
 
@@ -280,40 +283,16 @@ export function RequestsTable() {
 
   return (
     <section aria-label="Solicitudes" className="space-y-4">
-      <form
-        aria-label="Buscar solicitudes"
-        className="flex flex-wrap items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleSearch();
+      <RequestsFilterToolbar
+        appliedFilters={appliedFilters}
+        filters={filters}
+        onChange={applyFilters}
+        onClear={() => {
+          setFilters({});
+          setPage(1);
         }}
-      >
-        <Input
-          aria-label="Buscar solicitudes"
-          className="max-w-xs"
-          placeholder="Buscar por titulo o descripcion"
-          type="search"
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-        />
-        <Button type="submit" variant="outline">
-          Buscar
-        </Button>
-        {q && (
-          <Button
-            onClick={() => {
-              setSearchInput("");
-              setQ("");
-              setPage(1);
-            }}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Limpiar
-          </Button>
-        )}
-      </form>
+        onSearch={(text) => applyFilters({ q: text || undefined })}
+      />
 
       <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${isFetching ? "opacity-70" : ""}`}>
         <Table aria-label="Solicitudes">
@@ -332,8 +311,8 @@ export function RequestsTable() {
             {requests.length === 0 ? (
               <TableRow>
                 <TableCell className="h-32 text-center text-slate-500" colSpan={columns.length}>
-                  {q
-                    ? "No hay solicitudes que coincidan con la busqueda."
+                  {hasAppliedFilters
+                    ? "Ninguna solicitud coincide con los filtros aplicados."
                     : "No hay solicitudes para mostrar."}
                 </TableCell>
               </TableRow>
