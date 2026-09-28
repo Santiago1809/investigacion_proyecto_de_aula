@@ -8,6 +8,8 @@ import {
   assignRequest,
   updateRequestStatus,
   getStatusHistory,
+  confirmSolution,
+  reopenRequest,
   addRequestComment,
   getRequestComments
 } from '../services/request.service.js'
@@ -17,7 +19,8 @@ const REQUEST_PRIORITIES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
 const getUserRequestSchema = z
   .object({
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().default(10)
+    limit: z.coerce.number().int().positive().default(10),
+    q: z.string().trim().max(100, 'La búsqueda no puede superar los 100 caracteres').optional()
   })
   .strict()
 
@@ -71,9 +74,9 @@ export async function getUserRequestController(req, res) {
       details: params.error.flatten()
     })
   }
-  const { page, limit } = params.data
+  const { page, limit, q } = params.data
 
-  const request = await getRequestsByUser(req.user.id, page, limit)
+  const request = await getRequestsByUser(req.user.id, page, limit, q)
   return res.status(request.status).json(request)
 }
 
@@ -183,6 +186,42 @@ export async function getStatusHistoryController(req, res) {
   }
 
   const result = await getStatusHistory(params.data.id)
+  return res.status(result.status).json(result)
+}
+
+export async function confirmRequestController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
+
+  const result = await confirmSolution(params.data.id, req.user)
+  return res.status(result.status).json(result)
+}
+
+const reopenSchema = z
+  .object({
+    reason: z
+      .string({ error: 'El motivo es obligatorio' })
+      .trim()
+      .min(1, 'El motivo es obligatorio')
+  })
+  .strict()
+
+export async function reopenRequestController(req, res) {
+  const params = requestIdSchema.safeParse(req.params)
+  const body = reopenSchema.safeParse(req.body)
+  if (!params.success || !body.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: (params.success ? body : params).error.flatten()
+    })
+  }
+
+  const result = await reopenRequest(params.data.id, body.data.reason, req.user)
   return res.status(result.status).json(result)
 }
 

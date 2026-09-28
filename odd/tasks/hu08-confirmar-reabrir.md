@@ -12,12 +12,17 @@
 
 ## Tasks
 
-- [ ] T1 Backend: `POST /requests/:id/confirm` (role 1, only own request, only when RESUELTO) — sets CERRADO, adds audit `SOLUTION_CONFIRMED`, transaction + `app.current_user_id`.
-- [ ] T2 Backend: `POST /requests/:id/reopen` (role 1, only own request, only when RESUELTO), body `{reason}` non-empty — sets EN_PROGRESO, inserts comment with reason, audit `REQUEST_REOPENED`, clears closed/resolved dates where valid.
-- [ ] T3 Backend: `GET /requests?q=` — extend `GET /requests` for role 1 with optional text search (ILIKE on title/description, parameterized).
-- [ ] T4 Frontend portal (solicitante): search box on "mis solicitudes"; confirm/reopen actions (reopen requires reason dialog) on RESUELTO requests.
-- [ ] T5 Functional checks: backend boots, eslint clean, frontend build passes.
+- [x] T1 Backend: `POST /request/:id/confirm` (role 1, propia, solo RESUELTO) — transacción con lock, set_config, update a CERRADO + audit explícito `SOLUTION_CONFIRMED`; 403/409 con mensajes en español.
+- [x] T2 Backend: `POST /request/:id/reopen` (role 1, propia, solo RESUELTO), `{reason}` obligatorio — EN_PROGRESO + comentario con el motivo + audit `REQUEST_REOPENED`.
+- [x] T3 Backend: `GET /request?q=` — búsqueda ILIKE parametrizada en título/descripción para el solicitante; sin `q` el comportamiento no cambia.
+- [x] T4 Frontend portal: buscador en "mis solicitudes" (reset a página 1, "Limpiar"), acciones Confirmar/Reabrir solo en RESUELTO, reapertura con textarea inline (motivo obligatorio), errores por fila.
+- [x] T5 Checks: eslint backend + boot OK; frontend lint + tsc + build OK.
 
-## Route: delegated writer
+## Route: delegated writer (2 writers: backend, luego frontend)
+
+Notas:
+- `resolved_at` persiste al reabrir; `closed_at` nunca se había seteado (la solicitud no estaba CERRADA).
+- No hay componente dialog en `components/ui/` (base @base-ui/react): la reapertura usa textarea inline.
+- Auditoría explícita porque ningún trigger cubre SOLUTION_CONFIRMED / REQUEST_REOPENED.
 
 Progress / commits:
