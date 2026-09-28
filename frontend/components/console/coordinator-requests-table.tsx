@@ -14,6 +14,7 @@ import {
   type SortOrder,
 } from "@/hooks/use-all-requests";
 import { AssignAgentCell } from "@/components/console/assign-agent-cell";
+import { ExportRequestsButton } from "@/components/console/export-requests-button";
 import { RequestStatusCell } from "@/components/console/request-status-cell";
 import { RequestsFilterToolbar } from "@/components/requests/filter-toolbar";
 import type { RequestStatus } from "@/hooks/use-request-status";
@@ -262,6 +263,8 @@ export function CoordinatorRequestsTable() {
         }}
         onSearch={(text) => applyFilters({ q: text || undefined })}
       />
+
+      <ExportRequestsButton filters={filters} totalItems={pagination?.totalItems} />
 
       <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${isFetching ? "opacity-70" : ""}`}>
         <Table aria-label="Solicitudes">
