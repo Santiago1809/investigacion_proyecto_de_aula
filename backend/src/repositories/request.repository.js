@@ -122,6 +122,51 @@ export async function getAllRequests(sortBy, order, limit, offset, filters = {})
   return rows
 }
 
+// Listado del agente. El alcance va en el JOIN y no en un WHERE: el id del
+// agente es $1 y uq_active_request_assignment garantiza como máximo una
+// asignación vigente por solicitud, así que el join no duplica filas y
+// count(*) over() cuenta solicitudes, no asignaciones.
+export async function getAssignedRequests(
+  agent_id,
+  limit,
+  offset,
+  filters = {}
+) {
+  const values = [agent_id]
+  const conditions = buildFilterPredicates(filters, values)
+  values.push(limit, offset)
+  // El alcance ya está en el join, así que sin filtros no hay WHERE: el
+  // listado muestra todas las solicitudes con asignación vigente del agente.
+  const where = conditions.length ? `where ${conditions.join(' and ')}` : ''
+  const { rows } = await pool.query(
+    `select
+        r.id,
+        r.title,
+        r.description,
+        c."name" as category,
+        r.priority,
+        r.status,
+        r.created_at,
+        u.full_name as requester,
+        ua.full_name as agent,
+        count(*) over() as total_items
+      from
+        requests r
+      inner join categories c
+        on r.category_id = c.id
+      inner join users u
+        on r.requester_id = u.id
+      inner join request_assignments ra
+        on ra.request_id = r.id and ra.unassigned_at is null and ra.agent_id = $1
+      inner join users ua on ua.id = ra.agent_id
+      ${where}
+      order by r.created_at desc, r.id
+      limit $${values.length - 1} offset $${values.length};`,
+    values
+  )
+  return rows
+}
+
 export async function getRequestById(request_id) {
   const { rows } = await pool.query(
     `select

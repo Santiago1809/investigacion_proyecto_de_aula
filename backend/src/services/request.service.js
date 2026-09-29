@@ -2,6 +2,7 @@ import {
   createUserRequest,
   getUserRequests,
   getAllRequests,
+  getAssignedRequests,
   updateRequestPriority,
   getRequestById,
   assignRequestToAgent,
@@ -108,6 +109,35 @@ export async function getAllRequestsSorted(
   const request = await getAllRequests(
     sortBy,
     order,
+    pagination.limit,
+    pagination.offset,
+    filters
+  )
+  return buildPaginatedResponse(
+    request,
+    pagination.page,
+    pagination.limit,
+    buildAppliedFilters(filters)
+  )
+}
+
+export async function getRequestsAssignedToUser(
+  user_id,
+  page = 1,
+  limit = 10,
+  filters = {}
+) {
+  const pagination = normalizePagination(page, limit)
+  // FRONTERA DE PRIVACIDAD, no un detalle de implementación. El alcance es la
+  // asignación vigente del usuario autenticado y sale del token (req.user.id),
+  // nunca de un parámetro del cliente: por eso un agente no puede pedir la cola
+  // de otro. "Vigente" es unassigned_at is null, lo que además deja fuera las
+  // asignaciones históricas de una solicitud reasignada, que ya no le
+  // corresponden. El repositorio aplica ese alcance en el JOIN; si alguna vez
+  // pasa a ser un WHERE, deja de ser una frontera y queda como un filtro de
+  // presentación, que es justamente lo que no debe ser.
+  const request = await getAssignedRequests(
+    user_id,
     pagination.limit,
     pagination.offset,
     filters
