@@ -4,6 +4,7 @@ import {
   getRequestsByUser,
   changeRequestPriority,
   getAllRequestsSorted,
+  getRequestsAssignedToUser,
   getRequestDetail,
   assignRequest,
   updateRequestStatus,
@@ -86,6 +87,16 @@ const getAllRequestsSchema = z
   })
   .strict()
 
+// Misma paginación y mismos filtros combinables que el listado del
+// solicitante, sin sortBy/order: la mesa de trabajo es siempre created_at desc.
+const getAssignedRequestsSchema = z
+  .object({
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().default(10),
+    ...listFilterShape
+  })
+  .strict()
+
 const requestIdSchema = z.object({
   id: z.uuid()
 })
@@ -144,6 +155,28 @@ export async function getAllRequestsController(req, res) {
   const request = await getAllRequestsSorted(
     sortBy,
     order,
+    page,
+    limit,
+    filters
+  )
+  return res.status(request.status).json(request)
+}
+
+export async function getAssignedRequestsController(req, res) {
+  const params = getAssignedRequestsSchema.safeParse(req.query)
+  if (!params.success) {
+    return res.status(400).json({
+      error: 'Datos de entrada inválidos',
+      details: params.error.flatten()
+    })
+  }
+  // El esquema es strict, así que en filters solo quedan los filtros opcionales
+  // (q/status/priority/category_id), presentes solo si vinieron. El id del
+  // agente sale del token: nunca se acepta desde el query.
+  const { page, limit, ...filters } = params.data
+
+  const request = await getRequestsAssignedToUser(
+    req.user.id,
     page,
     limit,
     filters

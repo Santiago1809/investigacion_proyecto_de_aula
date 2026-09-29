@@ -7,6 +7,7 @@ import {
   createRequestController,
   getUserRequestController,
   getAllRequestsController,
+  getAssignedRequestsController,
   updateRequestPriorityController,
   getRequestByIdController,
   assignRequestController,
@@ -39,6 +40,15 @@ requestRoutes.get(
   authenticateToken,
   authorizeRoles(3),
   getAllRequestsController
+)
+
+// Tiene que ir antes de cualquier ruta con :id o Express matchearía
+// 'assigned' como id y nunca llegaría al handler del agente.
+requestRoutes.get(
+  '/assigned',
+  authenticateToken,
+  authorizeRoles(2),
+  getAssignedRequestsController
 )
 
 requestRoutes.get(
