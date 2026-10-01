@@ -6,7 +6,7 @@ CREATE TYPE user_status AS ENUM (
   'INACTIVE'
 );
 
-CREATE CREATE TYPE role_name as ENUM (
+CREATE TYPE role_name AS ENUM (
   'SOLICITANTE',
   'AGENTE',
   'COORDINADOR',
@@ -48,6 +48,8 @@ CREATE TYPE notification_type AS ENUM (
 );
 
 -- TABLAS
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(200) NOT NULL UNIQUE,
